@@ -238,15 +238,6 @@ katibay/
 | **Stellar Events** | Every vouch emits an immutable on-chain event (`VOUCHED`, `CRED`, `SCHOLAR`) for audit trail |
 | **Freighter Wallet** | Browser-native transaction signing — no private keys exposed |
 
----
-
-## 🏆 Why Katibay Wins
-
-1. **Real problem, real population** — 4.6M out-of-school youth in the Philippines, documented ID loop failure
-2. **Distinctly Filipino** — barangay as the trust unit, immutable ledger as political protection, CHED/DSWD pipeline as the payoff
-3. **Full-stack** — Deployed Soroban contract + production Next.js frontend on Vercel
-4. **On testnet** — Contract ID verifiable on Stellar Expert
-5. **Mobile-first design** — Responsive glassmorphism UI, no crypto experience required
 
 ---
 
