@@ -232,8 +232,10 @@
         <div class="wallet-row">
           <button id="connectBtn" class="primary" type="button">Connect Freighter</button>
           <button id="disconnectBtn" class="secondary" type="button">Clear Session</button>
+          <button id="diagBtn" class="secondary" type="button">Run Diagnostics</button>
         </div>
         <div class="status" id="walletStatus">Wallet not connected.</div>
+        <div id="diagResult" class="result">Diagnostics not run yet.</div>
       </article>
 
       <article class="panel">
@@ -272,24 +274,8 @@
     </section>
   </main>
 
-  <script type="module">
-    import {
-      Address,
-      Contract,
-      Networks,
-      SorobanRpc,
-      StrKey,
-      TransactionBuilder,
-      scValToNative,
-      nativeToScVal,
-    } from "https://cdn.jsdelivr.net/npm/@stellar/stellar-sdk@13.3.0/+esm";
-
-    import {
-      getAddress,
-      isConnected,
-      signTransaction,
-    } from "https://cdn.jsdelivr.net/npm/@stellar/freighter-api@5.3.0/+esm";
-
+  <script>
+    const TESTNET_PASSPHRASE = "Test SDF Network ; September 2015";
     const $ = (id) => document.getElementById(id);
 
     const state = {
@@ -297,9 +283,117 @@
     };
 
     const walletStatus = $("walletStatus");
+    const diagResult = $("diagResult");
     const vouchResult = $("vouchResult");
     const verifyResult = $("verifyResult");
     const identityResult = $("identityResult");
+
+    let sdk = null;
+    let freighterLib = null;
+
+    async function loadSdk() {
+      if (sdk) return sdk;
+
+      const candidates = [
+        "https://cdn.jsdelivr.net/npm/@stellar/stellar-sdk@14.6.1/+esm",
+        "https://cdn.jsdelivr.net/npm/@stellar/stellar-sdk/+esm",
+      ];
+
+      let lastError = null;
+      for (const url of candidates) {
+        try {
+          if (url.includes("+esm")) {
+            sdk = await import(url);
+          } else {
+            await new Promise((resolve, reject) => {
+              const s = document.createElement("script");
+              s.src = url;
+              s.async = true;
+              s.onload = resolve;
+              s.onerror = reject;
+              document.head.appendChild(s);
+            });
+            sdk = window.StellarSdk || null;
+          }
+
+          if (sdk) return sdk;
+        } catch (err) {
+          lastError = err;
+        }
+      }
+
+      throw new Error(`Failed to load Stellar SDK from CDN: ${lastError || "unknown error"}`);
+    }
+
+    function getSdkFns(mod) {
+      const candidates = [
+        mod,
+        mod?.default,
+      ].filter(Boolean);
+
+      let merged = {};
+      for (const c of candidates) {
+        merged = { ...merged, ...c };
+      }
+
+      return {
+        Address: merged.Address,
+        Contract: merged.Contract,
+        Networks: merged.Networks,
+        SorobanRpc: merged.SorobanRpc || merged.rpc || merged.Rpc,
+        StrKey: merged.StrKey,
+        TransactionBuilder: merged.TransactionBuilder,
+        xdr: merged.xdr,
+        scValToNative: merged.scValToNative,
+        nativeToScVal: merged.nativeToScVal,
+        keys: Object.keys(merged),
+      };
+    }
+
+    async function loadFreighterLib() {
+      if (freighterLib) return freighterLib;
+      const candidates = [
+        "https://cdn.jsdelivr.net/npm/@stellar/freighter-api@6.0.1/+esm",
+        "https://esm.sh/@stellar/freighter-api@6.0.1",
+        "https://cdn.jsdelivr.net/npm/@stellar/freighter-api/+esm",
+        "https://esm.sh/@stellar/freighter-api",
+      ];
+
+      const errors = [];
+      for (const url of candidates) {
+        try {
+          freighterLib = await import(url);
+          if (freighterLib) return freighterLib;
+        } catch (err) {
+          errors.push(`${url} => ${err}`);
+        }
+      }
+
+      throw new Error(`Failed to load Freighter web API library from all CDNs:\n${errors.join("\n")}`);
+    }
+
+    function getFreighterFns(mod) {
+      const candidates = [
+        mod,
+        mod?.default,
+        mod?.freighterApi,
+        mod?.default?.freighterApi,
+      ].filter(Boolean);
+
+      let merged = {};
+      for (const c of candidates) {
+        merged = { ...merged, ...c };
+      }
+
+      return {
+        requestAccess: merged.requestAccess,
+        getAddress: merged.getAddress,
+        signTransaction: merged.signTransaction,
+        isConnected: merged.isConnected,
+        getNetworkDetails: merged.getNetworkDetails,
+        keys: Object.keys(merged),
+      };
+    }
 
     function setStatus(el, message, type = "") {
       el.textContent = message;
@@ -309,7 +403,7 @@
 
     function getConfig() {
       const rpc = $("rpcUrl").value.trim();
-      const passphrase = $("networkPassphrase").value.trim() || Networks.TESTNET;
+      const passphrase = $("networkPassphrase").value.trim() || TESTNET_PASSPHRASE;
       const contractId = $("contractId").value.trim();
       if (!rpc) throw new Error("RPC URL is required.");
       if (!contractId) throw new Error("Contract ID is required.");
@@ -327,13 +421,145 @@
       return bytes;
     }
 
-    function toAddressScVal(address) {
+    function toAddressScVal(address, Address) {
       return new Address(address).toScVal();
     }
 
+    function getFreighterApi() {
+      const api = window.freighterApi;
+      if (!api) {
+        throw new Error("Freighter extension not detected. Install it, enable it, then refresh this page.");
+      }
+      return api;
+    }
+
+    async function freighterRequestAccess() {
+      try {
+        const lib = await loadFreighterLib();
+        const fns = getFreighterFns(lib);
+        if (fns.requestAccess) {
+          const result = await fns.requestAccess();
+          if (result?.error) throw new Error(result.error);
+          return result?.address || null;
+        }
+      } catch (_) {
+        // Fallback handled below.
+      }
+
+      const api = getFreighterApi();
+      if (api.requestAccess) {
+        const result = await api.requestAccess();
+        if (result?.error) throw new Error(result.error);
+        return result?.address || null;
+      }
+      return null;
+    }
+
+    async function freighterGetAddress() {
+      try {
+        const lib = await loadFreighterLib();
+        const fns = getFreighterFns(lib);
+        if (fns.getAddress) {
+          const result = await fns.getAddress();
+          if (result?.error) throw new Error(result.error);
+          return result?.address || "";
+        }
+      } catch (_) {
+        // Fallback handled below.
+      }
+
+      const api = getFreighterApi();
+      const result = await api.getAddress();
+      const address = typeof result === "string" ? result : result?.address;
+      if ((typeof result === "object" && result?.error) || !address) {
+        throw new Error(result?.error || "Could not read Freighter address.");
+      }
+      return address;
+    }
+
+    async function freighterSignTransaction(xdr, networkPassphrase) {
+      try {
+        const lib = await loadFreighterLib();
+        const fns = getFreighterFns(lib);
+        if (fns.signTransaction) {
+          const result = await fns.signTransaction(xdr, { networkPassphrase });
+          if (result?.error) throw new Error(result.error);
+          return result?.signedTxXdr || result?.xdr || result;
+        }
+      } catch (_) {
+        // Fallback handled below.
+      }
+
+      const api = getFreighterApi();
+      const result = await api.signTransaction(xdr, { networkPassphrase });
+      const signedXdr = result?.signedTxXdr || result?.xdr || result;
+      if (!signedXdr || result?.error) {
+        throw new Error(result?.error || "Transaction signing cancelled or failed.");
+      }
+      return signedXdr;
+    }
+
+    async function runDiagnostics() {
+      const ua = navigator.userAgent || "";
+      const isVsCodeHost = /vscode|code-server|electron/i.test(ua);
+      const isLocalhost = location.hostname === "localhost" || location.hostname === "127.0.0.1" || location.hostname === "::1";
+      const freighterInjected = !!window.freighterApi;
+      const likelyBrowser = /chrome|chromium|brave|firefox|edg/i.test(ua);
+
+      const lines = [
+        `URL: ${location.href}`,
+        `Host OK (localhost): ${isLocalhost}`,
+        `Likely normal browser: ${likelyBrowser}`,
+        `Likely VS Code embedded webview/simple browser: ${isVsCodeHost}`,
+        `window.freighterApi injected: ${freighterInjected}`,
+      ];
+
+      try {
+        const lib = await loadFreighterLib();
+        const fns = getFreighterFns(lib);
+        const hasFns = !!(fns.requestAccess && fns.getAddress && fns.signTransaction);
+        lines.push(`freighter-api library loaded: ${hasFns}`);
+        lines.push(`freighter-api exported keys: ${fns.keys.slice(0, 20).join(", ") || "(none)"}`);
+
+        if (fns.isConnected) {
+          const connected = await fns.isConnected();
+          lines.push(`freighter-api isConnected: ${connected?.isConnected === true}`);
+          if (connected?.error) lines.push(`freighter-api isConnected error: ${connected.error}`);
+        }
+
+        if (fns.getNetworkDetails) {
+          const net = await fns.getNetworkDetails();
+          if (net?.error) {
+            lines.push(`freighter-api network error: ${net.error}`);
+          } else {
+            lines.push(`Freighter network: ${net?.network || "unknown"}`);
+            lines.push(`Freighter network passphrase: ${net?.networkPassphrase || "unknown"}`);
+            lines.push(`Freighter Soroban RPC: ${net?.sorobanRpcUrl || "unknown"}`);
+          }
+        }
+      } catch (e) {
+        lines.push(`freighter-api library load failed: ${e?.message || e}`);
+      }
+
+      if (!freighterInjected) {
+        lines.push("Fix: Open this app in Chrome/Brave/Firefox (not VS Code Simple Browser), then refresh.");
+        lines.push("Fix: Ensure Freighter extension is installed, enabled, unlocked, and allowed on this site.");
+        lines.push("Note: Newer Freighter integrations may still work via @stellar/freighter-api even if this global is missing.");
+      }
+
+      const looksUsable = lines.some((l) => l.includes("freighter-api library loaded: true"));
+      setStatus(diagResult, lines.join("\n"), (freighterInjected || looksUsable) ? "ok" : "err");
+    }
+
     async function getServerAndAccount() {
+      const sdkMod = await loadSdk();
+      const { SorobanRpc, keys } = getSdkFns(sdkMod);
       const { rpc } = getConfig();
-      const server = new SorobanRpc.Server(rpc, { allowHttp: rpc.startsWith("http://") });
+      const ServerCtor = SorobanRpc?.Server;
+      if (!ServerCtor) {
+        throw new Error(`Soroban RPC Server not found in loaded Stellar SDK exports. Keys: ${keys.slice(0, 40).join(", ")}`);
+      }
+      const server = new ServerCtor(rpc, { allowHttp: rpc.startsWith("http://") });
       const account = await server.getAccount(state.walletAddress);
       return { server, account };
     }
@@ -351,18 +577,11 @@
     }
 
     async function connectWallet() {
-      const connected = await isConnected();
-      if (!connected?.isConnected) {
-        setStatus(walletStatus, "Freighter not connected or not installed.", "err");
-        return;
-      }
+      await freighterRequestAccess();
+      const address = await freighterGetAddress();
+      if (!address) throw new Error("Could not read Freighter address.");
 
-      const addressResult = await getAddress();
-      if (addressResult.error || !addressResult.address) {
-        throw new Error(addressResult.error || "Could not read Freighter address.");
-      }
-
-      state.walletAddress = addressResult.address;
+      state.walletAddress = address;
       setStatus(walletStatus, `Connected as ${state.walletAddress}`, "ok");
     }
 
@@ -372,6 +591,16 @@
       const student = $("vouchStudent").value.trim();
       const nameHashHex = $("nameHash").value.trim();
       const { passphrase, contractId } = getConfig();
+      const sdkMod = await loadSdk();
+      const {
+        Address,
+        Contract,
+        SorobanRpc,
+        StrKey,
+        TransactionBuilder,
+        xdr,
+        nativeToScVal,
+      } = getSdkFns(sdkMod);
 
       if (!StrKey.isValidEd25519PublicKey(student)) {
         throw new Error("Student address is not a valid Stellar G-address.");
@@ -382,9 +611,9 @@
 
       const op = new Contract(contractId).call(
         "vouch_for",
-        toAddressScVal(state.walletAddress),
-        toAddressScVal(student),
-        nativeToScVal(nameHashBytes, { type: "bytes" })
+        toAddressScVal(state.walletAddress, Address),
+        toAddressScVal(student, Address),
+        xdr.ScVal.scvBytes(nameHashBytes)
       );
 
       const tx = new TransactionBuilder(account, {
@@ -396,11 +625,7 @@
         .build();
 
       const prepared = await server.prepareTransaction(tx);
-      const signedResult = await signTransaction(prepared.toXDR(), { networkPassphrase: passphrase });
-      const signedXdr = signedResult?.signedTxXdr || signedResult;
-      if (!signedXdr || signedResult?.error) {
-        throw new Error(signedResult?.error || "Transaction signing cancelled or failed.");
-      }
+      const signedXdr = await freighterSignTransaction(prepared.toXDR(), passphrase);
 
       const signedTx = TransactionBuilder.fromXDR(signedXdr, passphrase);
       const sent = await server.sendTransaction(signedTx);
@@ -416,16 +641,30 @@
 
     async function checkVerified() {
       const student = $("verifyStudent").value.trim();
+      const sdkMod = await loadSdk();
+      const {
+        Address,
+        Contract,
+        SorobanRpc,
+        StrKey,
+        TransactionBuilder,
+        scValToNative,
+        keys,
+      } = getSdkFns(sdkMod);
       if (!StrKey.isValidEd25519PublicKey(student)) {
         throw new Error("Student address is not a valid Stellar G-address.");
       }
 
       const { rpc, passphrase, contractId } = getConfig();
-      const server = new SorobanRpc.Server(rpc, { allowHttp: rpc.startsWith("http://") });
+      const ServerCtor = SorobanRpc?.Server;
+      if (!ServerCtor) {
+        throw new Error(`Soroban RPC Server not found in loaded Stellar SDK exports. Keys: ${keys.slice(0, 40).join(", ")}`);
+      }
+      const server = new ServerCtor(rpc, { allowHttp: rpc.startsWith("http://") });
       const source = state.walletAddress || student;
       const account = await server.getAccount(source);
 
-      const op = new Contract(contractId).call("check_verified", toAddressScVal(student));
+      const op = new Contract(contractId).call("check_verified", toAddressScVal(student, Address));
       const tx = new TransactionBuilder(account, {
         fee: "100000",
         networkPassphrase: passphrase,
@@ -446,16 +685,30 @@
 
     async function getIdentity() {
       const student = $("identityStudent").value.trim();
+      const sdkMod = await loadSdk();
+      const {
+        Address,
+        Contract,
+        SorobanRpc,
+        StrKey,
+        TransactionBuilder,
+        scValToNative,
+        keys,
+      } = getSdkFns(sdkMod);
       if (!StrKey.isValidEd25519PublicKey(student)) {
         throw new Error("Student address is not a valid Stellar G-address.");
       }
 
       const { rpc, passphrase, contractId } = getConfig();
-      const server = new SorobanRpc.Server(rpc, { allowHttp: rpc.startsWith("http://") });
+      const ServerCtor = SorobanRpc?.Server;
+      if (!ServerCtor) {
+        throw new Error(`Soroban RPC Server not found in loaded Stellar SDK exports. Keys: ${keys.slice(0, 40).join(", ")}`);
+      }
+      const server = new ServerCtor(rpc, { allowHttp: rpc.startsWith("http://") });
       const source = state.walletAddress || student;
       const account = await server.getAccount(source);
 
-      const op = new Contract(contractId).call("get_identity", toAddressScVal(student));
+      const op = new Contract(contractId).call("get_identity", toAddressScVal(student, Address));
       const tx = new TransactionBuilder(account, {
         fee: "100000",
         networkPassphrase: passphrase,
@@ -480,7 +733,7 @@
     }
 
     $("connectBtn").addEventListener("click", async () => {
-      setStatus(walletStatus, "Connecting to Freighter...");
+      setStatus(walletStatus, "Connecting to Freighter... If no popup appears, click the Freighter extension icon.");
       try {
         await connectWallet();
       } catch (err) {
@@ -491,6 +744,11 @@
     $("disconnectBtn").addEventListener("click", () => {
       state.walletAddress = null;
       setStatus(walletStatus, "Wallet session cleared.");
+    });
+
+    $("diagBtn").addEventListener("click", async () => {
+      setStatus(diagResult, "Running diagnostics...");
+      await runDiagnostics();
     });
 
     $("vouchBtn").addEventListener("click", async () => {
@@ -519,6 +777,9 @@
         setStatus(identityResult, err.message || String(err), "err");
       }
     });
+
+    setStatus(diagResult, "App script loaded. Running initial diagnostics...");
+    runDiagnostics();
   </script>
 </body>
 </html>
