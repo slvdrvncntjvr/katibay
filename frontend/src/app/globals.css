@@ -583,3 +583,207 @@ input.field-input:focus {
 ::-webkit-scrollbar         { width: 5px; }
 ::-webkit-scrollbar-track   { background: transparent; }
 ::-webkit-scrollbar-thumb   { background: rgba(255,255,255,0.12); border-radius: 99px; }
+
+/* ══ Textarea ════════════════════════════════════════════════════════════════ */
+textarea.field-input {
+  width: 100%;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: var(--r-sm);
+  padding: 0.7rem 1rem;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-size: 0.92rem; color: var(--text-1);
+  transition: border-color 0.2s, box-shadow 0.2s;
+  resize: vertical;
+  min-height: 88px;
+}
+textarea.field-input::placeholder { color: var(--text-3); }
+textarea.field-input:focus {
+  outline: none;
+  border-color: var(--gold);
+  box-shadow: 0 0 0 3px rgba(240,165,0,0.15);
+}
+.char-count {
+  font-size: 0.75rem; color: var(--text-3);
+  text-align: right; margin-top: 4px;
+}
+
+/* ══ Student finder card (in app section) ════════════════════════════════════ */
+.student-preview-card {
+  background: rgba(240,165,0,0.05);
+  border: 1px solid rgba(240,165,0,0.2);
+  border-radius: var(--r-md);
+  padding: 1.25rem;
+  margin-top: 1.25rem;
+  animation: fadeUp 0.35s ease;
+}
+.student-preview-row {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 0.75rem; flex-wrap: wrap;
+}
+.student-preview-status {
+  display: flex; align-items: center; gap: 0.4rem;
+  font-size: 0.875rem; font-weight: 700;
+}
+.mini-ring {
+  display: flex; gap: 4px; align-items: center;
+}
+.mini-dot {
+  width: 10px; height: 10px; border-radius: 50%;
+}
+.mini-dot-filled { background: var(--gold); box-shadow: 0 0 4px var(--gold); }
+.mini-dot-empty  { background: rgba(255,255,255,0.12); }
+.mini-dot-green  { background: var(--success); box-shadow: 0 0 4px var(--success); }
+
+/* ══ Profile page layout ═════════════════════════════════════════════════════ */
+.profile-page { min-height: 100vh; position: relative; z-index: 1; }
+.profile-container {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 2rem 1.5rem 5rem;
+}
+.profile-card {
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: var(--r-lg);
+  padding: 2rem;
+  backdrop-filter: blur(14px);
+  margin-bottom: 1.5rem;
+  box-shadow: 0 0 60px rgba(240,165,0,0.05), 0 12px 40px rgba(0,0,0,0.25);
+  animation: fadeUp 0.5s ease;
+}
+.profile-card-top {
+  display: flex; align-items: flex-start;
+  justify-content: space-between; gap: 1.5rem;
+  flex-wrap: wrap;
+}
+.profile-left { flex: 1; min-width: 220px; }
+.profile-status-badge {
+  display: inline-flex; align-items: center; gap: 0.4rem;
+  font-size: 0.72rem; font-weight: 800;
+  letter-spacing: 0.1em; text-transform: uppercase;
+  padding: 4px 12px; border-radius: 999px;
+  margin-bottom: 0.75rem;
+}
+.profile-status-badge.verified {
+  background: rgba(34,197,94,0.12);
+  border: 1px solid rgba(34,197,94,0.25);
+  color: var(--success);
+}
+.profile-status-badge.pending {
+  background: rgba(240,165,0,0.1);
+  border: 1px solid rgba(240,165,0,0.2);
+  color: var(--gold-light);
+}
+.profile-title {
+  font-size: 1.75rem; font-weight: 800;
+  letter-spacing: -0.02em; margin-bottom: 0.5rem;
+}
+.profile-address-row {
+  display: flex; align-items: center; gap: 0.5rem;
+  margin-bottom: 1.25rem;
+}
+.profile-address { font-family: monospace; font-size: 0.88rem; color: var(--text-2); }
+.profile-meta { display: flex; flex-direction: column; gap: 0.5rem; }
+.profile-meta-item { display: flex; gap: 0.75rem; align-items: center; }
+.profile-meta-label {
+  font-size: 0.73rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.07em; color: var(--text-3); min-width: 100px;
+}
+.profile-meta-value { font-size: 0.875rem; color: var(--text-1); }
+.profile-meta-value.mono { font-family: monospace; color: var(--text-2); }
+.mono { font-family: monospace; }
+
+/* ── Verified banner */
+.verified-banner {
+  display: flex; align-items: center; gap: 0.75rem;
+  background: rgba(34,197,94,0.07);
+  border: 1px solid rgba(34,197,94,0.2);
+  border-radius: var(--r-md);
+  padding: 0.875rem 1rem;
+  font-size: 0.875rem; color: var(--success);
+  line-height: 1.55;
+  margin-top: 1.5rem;
+}
+
+/* ── Vouch ring */
+.vouch-ring-wrap {
+  position: relative;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.vouch-ring-label {
+  position: absolute;
+  display: flex; flex-direction: column; align-items: center;
+}
+.vouch-ring-count { font-family: 'Space Grotesk', sans-serif; font-size: 1.4rem; font-weight: 800; }
+.vouch-ring-sub   { font-size: 0.72rem; color: var(--text-3); font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; }
+
+/* ── Attestations */
+.att-section { animation: fadeUp 0.55s ease; animation-delay: 0.1s; }
+.att-title {
+  display: flex; align-items: center; gap: 0.6rem;
+  font-size: 1.2rem; font-weight: 700; margin-bottom: 1.25rem;
+}
+.att-count {
+  background: rgba(240,165,0,0.12);
+  border: 1px solid rgba(240,165,0,0.2);
+  color: var(--gold-light);
+  font-size: 0.75rem; font-weight: 700;
+  padding: 2px 9px; border-radius: 999px;
+  margin-left: 0.25rem;
+}
+.att-empty {
+  background: var(--card-bg);
+  border: 1px dashed var(--card-border);
+  border-radius: var(--r-md);
+  padding: 2rem; text-align: center;
+  color: var(--text-3); font-size: 0.9rem;
+}
+.att-list { display: flex; flex-direction: column; gap: 1rem; }
+.att-card {
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: var(--r-md);
+  padding: 1.25rem 1.5rem;
+  backdrop-filter: blur(10px);
+  animation: fadeUp 0.4s ease both;
+}
+.att-card-header {
+  display: flex; align-items: center; gap: 0.85rem;
+  margin-bottom: 0.875rem;
+}
+.att-voucher { font-family: monospace; font-size: 0.875rem; font-weight: 600; }
+.att-label   { font-size: 0.75rem; color: var(--text-3); margin-top: 2px; }
+.att-badge {
+  margin-left: auto;
+  background: rgba(34,197,94,0.1);
+  border: 1px solid rgba(34,197,94,0.2);
+  color: var(--success);
+  font-size: 0.72rem; font-weight: 700;
+  padding: 2px 9px; border-radius: 999px;
+  white-space: nowrap;
+}
+.att-message {
+  font-size: 0.92rem; color: var(--text-2);
+  line-height: 1.65; font-style: italic;
+  padding-left: 1rem;
+  border-left: 2px solid rgba(240,165,0,0.3);
+}
+
+/* ── Error / empty states on profile page */
+.profile-error,
+.profile-empty {
+  text-align: center; padding: 4rem 2rem;
+  display: flex; flex-direction: column; align-items: center;
+  gap: 0.5rem;
+}
+.profile-empty h2 { font-size: 1.5rem; margin-bottom: 0.25rem; }
+.profile-empty p  { color: var(--text-2); }
+
+/* Larger spinner variant */
+.spinner-lg {
+  width: 36px !important; height: 36px !important;
+  border-width: 3px !important;
+}
+

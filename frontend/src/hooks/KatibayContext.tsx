@@ -16,20 +16,35 @@ import {
   TransactionBuilder,
   xdr,
   scValToNative,
+  nativeToScVal,
 } from "@stellar/stellar-sdk";
 
-const RPC_URL = process.env.NEXT_PUBLIC_RPC_URL!;
-const NETWORK_PASSPHRASE = process.env.NEXT_PUBLIC_NETWORK_PASSPHRASE!;
-const CONTRACT_ID = process.env.NEXT_PUBLIC_CONTRACT_ID!;
+export const RPC_URL = process.env.NEXT_PUBLIC_RPC_URL!;
+export const NETWORK_PASSPHRASE = process.env.NEXT_PUBLIC_NETWORK_PASSPHRASE!;
+export const CONTRACT_ID = process.env.NEXT_PUBLIC_CONTRACT_ID!;
+
+export interface Attestation {
+  voucher: string;
+  message: string;
+}
+
+export interface IdentityRecord {
+  student: string;
+  name_hash: string;
+  vouch_count: number;
+  verified: boolean;
+  scholarship_slot?: number;
+}
 
 interface KatibayContextType {
   address: string | null;
   isConnecting: boolean;
   connect: () => Promise<void>;
   disconnect: () => void;
-  vouchForStudent: (student: string, hashHex: string) => Promise<any>;
+  vouchForStudent: (student: string, hashHex: string, message: string) => Promise<any>;
   checkVerified: (student: string) => Promise<boolean | null>;
-  getIdentity: (student: string) => Promise<any>;
+  getIdentity: (student: string) => Promise<IdentityRecord | null>;
+  getAttestations: (student: string) => Promise<Attestation[]>;
 }
 
 const KatibayContext = createContext<KatibayContextType | undefined>(undefined);
@@ -47,15 +62,8 @@ export function KatibayProvider({ children }: { children: ReactNode }) {
 
       const netDetails = await getNetworkDetails();
       if (netDetails.error) throw new Error(netDetails.error);
-
-      // Enforce testnet
-      if (
-        netDetails.networkPassphrase &&
-        netDetails.networkPassphrase !== NETWORK_PASSPHRASE
-      ) {
-        throw new Error(
-          "Freighter is set to the wrong network. Please switch to Testnet in Freighter settings."
-        );
+      if (netDetails.networkPassphrase && netDetails.networkPassphrase !== NETWORK_PASSPHRASE) {
+        throw new Error("Wrong network — switch Freighter to Testnet in its settings.");
       }
 
       const addr = await getAddress();
@@ -87,119 +95,96 @@ export function KatibayProvider({ children }: { children: ReactNode }) {
     throw new Error("Timed out waiting for confirmation.");
   };
 
-  const vouchForStudent = async (studentAddress: string, nameHashHex: string) => {
+  const simulate = async (fnName: string, args: xdr.ScVal[]) => {
+    const server = getServer();
+    const sourceAddress = address || (args[0] ? scValToNative(args[0]) as string : null);
+    if (!sourceAddress || typeof sourceAddress !== "string") {
+      throw new Error("Need a source account — connect Freighter or provide an address.");
+    }
+    const account = await server.getAccount(sourceAddress);
+    const op = new Contract(CONTRACT_ID).call(fnName, ...args);
+    const tx = new TransactionBuilder(account, { fee: "1000", networkPassphrase: NETWORK_PASSPHRASE })
+      .addOperation(op)
+      .setTimeout(60)
+      .build();
+    const sim = await server.simulateTransaction(tx);
+    if (rpc.Api.isSimulationError(sim)) throw new Error((sim as any).error || "Simulation failed.");
+    return sim.result?.retval;
+  };
+
+  const vouchForStudent = async (studentAddress: string, nameHashHex: string, message: string) => {
     if (!address) throw new Error("Connect your wallet first.");
-    if (!StrKey.isValidEd25519PublicKey(studentAddress))
-      throw new Error("Invalid student address (must be a G… Stellar public key).");
-    if (!/^[0-9a-fA-F]{64}$/.test(nameHashHex))
-      throw new Error("Name hash must be a 64-character hex string (32 bytes).");
+    if (!StrKey.isValidEd25519PublicKey(studentAddress)) throw new Error("Invalid student address.");
+    if (!/^[0-9a-fA-F]{64}$/.test(nameHashHex)) throw new Error("Name hash must be 64 hex chars.");
+    if (!message.trim()) throw new Error("Please write a vouch message — it goes on the blockchain.");
 
     const bytes = new Uint8Array(32);
-    for (let i = 0; i < 32; i++) {
-      bytes[i] = parseInt(nameHashHex.slice(i * 2, i * 2 + 2), 16);
-    }
+    for (let i = 0; i < 32; i++) bytes[i] = parseInt(nameHashHex.slice(i * 2, i * 2 + 2), 16);
 
     const server = getServer();
     const account = await server.getAccount(address);
-    const contract = new Contract(CONTRACT_ID);
 
-    const op = contract.call(
+    const op = new Contract(CONTRACT_ID).call(
       "vouch_for",
       new Address(address).toScVal(),
       new Address(studentAddress).toScVal(),
-      xdr.ScVal.scvBytes(bytes as any)
+      xdr.ScVal.scvBytes(bytes as any),
+      nativeToScVal(message, { type: "string" }),
     );
 
-    const tx = new TransactionBuilder(account, {
-      fee: "100000",
-      networkPassphrase: NETWORK_PASSPHRASE,
-    })
+    const tx = new TransactionBuilder(account, { fee: "100000", networkPassphrase: NETWORK_PASSPHRASE })
       .addOperation(op)
       .setTimeout(120)
       .build();
 
     const prepared = await server.prepareTransaction(tx);
-
-    // Pass network explicitly so Freighter doesn't show the warning
-    const signResult = await signTransaction(prepared.toXDR(), {
-      networkPassphrase: NETWORK_PASSPHRASE,
-    });
+    const signResult = await signTransaction(prepared.toXDR(), { networkPassphrase: NETWORK_PASSPHRASE });
     if (signResult.error) throw new Error(signResult.error as string);
 
-    const signedXdr =
-      typeof signResult === "string"
-        ? signResult
-        : (signResult as any).signedTxXdr ?? (signResult as any).xdr;
+    const signedXdr = typeof signResult === "string"
+      ? signResult
+      : (signResult as any).signedTxXdr ?? (signResult as any).xdr;
     if (!signedXdr) throw new Error("Could not retrieve signed XDR from Freighter.");
 
     const signedTx = TransactionBuilder.fromXDR(signedXdr, NETWORK_PASSPHRASE);
     const sent = await server.sendTransaction(signedTx);
     if (sent.status === "ERROR") throw new Error("RPC rejected the transaction.");
 
-    const confirmed = await pollTx(server, sent.hash);
-    return confirmed;
+    return await pollTx(server, sent.hash);
   };
 
   const checkVerified = async (studentAddress: string): Promise<boolean | null> => {
-    if (!StrKey.isValidEd25519PublicKey(studentAddress))
-      throw new Error("Invalid student address.");
-
-    const server = getServer();
-    const sourceAddress = address || studentAddress;
-    const account = await server.getAccount(sourceAddress);
-
-    const op = new Contract(CONTRACT_ID).call(
-      "check_verified",
-      new Address(studentAddress).toScVal()
-    );
-
-    const tx = new TransactionBuilder(account, {
-      fee: "1000",
-      networkPassphrase: NETWORK_PASSPHRASE,
-    })
-      .addOperation(op)
-      .setTimeout(60)
-      .build();
-
-    const sim = await server.simulateTransaction(tx);
-    if (rpc.Api.isSimulationError(sim)) throw new Error("Simulation error: " + (sim as any).error);
-
-    const retval = sim.result?.retval;
+    if (!StrKey.isValidEd25519PublicKey(studentAddress)) throw new Error("Invalid student address.");
+    const retval = await simulate("check_verified", [new Address(studentAddress).toScVal()]);
     return retval ? (scValToNative(retval) as boolean) : false;
   };
 
-  const getIdentity = async (studentAddress: string) => {
-    if (!StrKey.isValidEd25519PublicKey(studentAddress))
-      throw new Error("Invalid student address.");
+  const getIdentity = async (studentAddress: string): Promise<IdentityRecord | null> => {
+    if (!StrKey.isValidEd25519PublicKey(studentAddress)) throw new Error("Invalid student address.");
+    const retval = await simulate("get_identity", [new Address(studentAddress).toScVal()]);
+    if (!retval) return null;
+    const raw = scValToNative(retval);
+    if (!raw) return null;
+    return raw as IdentityRecord;
+  };
 
-    const server = getServer();
-    const sourceAddress = address || studentAddress;
-    const account = await server.getAccount(sourceAddress);
-
-    const op = new Contract(CONTRACT_ID).call(
-      "get_identity",
-      new Address(studentAddress).toScVal()
-    );
-
-    const tx = new TransactionBuilder(account, {
-      fee: "1000",
-      networkPassphrase: NETWORK_PASSPHRASE,
-    })
-      .addOperation(op)
-      .setTimeout(60)
-      .build();
-
-    const sim = await server.simulateTransaction(tx);
-    if (rpc.Api.isSimulationError(sim)) throw new Error("Simulation error: " + (sim as any).error);
-
-    const retval = sim.result?.retval;
-    return retval ? scValToNative(retval) : null;
+  const getAttestations = async (studentAddress: string): Promise<Attestation[]> => {
+    if (!StrKey.isValidEd25519PublicKey(studentAddress)) throw new Error("Invalid student address.");
+    const retval = await simulate("get_attestations", [new Address(studentAddress).toScVal()]);
+    if (!retval) return [];
+    const raw = scValToNative(retval);
+    if (!Array.isArray(raw)) return [];
+    return raw.map((item: any) => ({
+      voucher: item?.voucher ?? item?.[0] ?? "unknown",
+      message: item?.message ?? item?.[1] ?? "",
+    }));
   };
 
   return (
-    <KatibayContext.Provider
-      value={{ address, isConnecting, connect, disconnect, vouchForStudent, checkVerified, getIdentity }}
-    >
+    <KatibayContext.Provider value={{
+      address, isConnecting, connect, disconnect,
+      vouchForStudent, checkVerified, getIdentity, getAttestations,
+    }}>
       {children}
     </KatibayContext.Provider>
   );
