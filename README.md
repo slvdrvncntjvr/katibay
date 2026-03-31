@@ -28,9 +28,22 @@ On the profile page you will see:
 - ✅ **VERIFIED** badge — threshold of 3 vouches met
 - 🔵 Full vouch progress ring (3/3)
 - 📜 All 3 community attestation messages stored permanently on-chain
-- 🔗 Links to [Stellar Expert](https://stellar.expert/explorer/testnet/account/GBWDC266PYWCVDCRJXLKEEUTBHFLSPSH7FYIPVRWCSVSIZRBGOAKJ6T4) and the live contract
+- 🔗 Links to Stellar Expert and the live contract
 
-You can also look this student up using the **Student Lookup** tab on the live app.
+---
+
+## 📸 Screenshots
+
+### Landing Page
+![Katibay Landing Page — navy/gold glassmorphism design with hero headline](https://raw.githubusercontent.com/slvdrvncntjvr/katibay/main/docs/screenshots/landing.png)
+
+### Student Profile Page (VERIFIED — 3/3 Vouches)
+![Student profile showing VERIFIED badge, 3/3 vouch ring, and on-chain attestation messages](https://raw.githubusercontent.com/slvdrvncntjvr/katibay/main/docs/screenshots/profile.png)
+
+### Smart Contract on Stellar Expert (Testnet)
+![Stellar Expert showing contract transaction history with vouch_for calls and attestation message strings visible on-chain](https://raw.githubusercontent.com/slvdrvncntjvr/katibay/main/docs/screenshots/explorer.png)
+
+> The Stellar Expert screenshot shows the actual attestation messages (e.g. *"I have known this child for 5 years"*) stored as string parameters in the `vouch_for()` transactions — permanently on the Stellar ledger.
 
 ---
 
