@@ -787,3 +787,264 @@ textarea.field-input:focus {
   border-width: 3px !important;
 }
 
+/* ══ Register Page ══════════════════════════════════════════════════════════ */
+.register-page { min-height: 100vh; position: relative; z-index: 1; }
+.register-container {
+  max-width: 560px;
+  margin: 0 auto;
+  padding: 2rem 1.5rem 5rem;
+}
+
+/* ── Stepper ── */
+.reg-stepper {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 0;
+  margin-bottom: 2.5rem;
+  position: relative;
+}
+.reg-step-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+  position: relative;
+  flex: 1;
+}
+.reg-step-circle {
+  width: 36px; height: 36px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.06);
+  border: 2px solid rgba(255,255,255,0.1);
+  display: flex; align-items: center; justify-content: center;
+  font-family: 'Space Grotesk', sans-serif;
+  font-weight: 700; font-size: 0.9rem;
+  color: var(--text-3);
+  transition: all 0.3s ease;
+  z-index: 1;
+}
+.reg-step-active {
+  background: linear-gradient(135deg, var(--gold), var(--gold-light));
+  border-color: transparent;
+  color: var(--navy);
+  box-shadow: 0 4px 14px rgba(240,165,0,0.4);
+}
+.reg-step-done {
+  background: rgba(34,197,94,0.15);
+  border-color: rgba(34,197,94,0.4);
+  color: var(--success);
+}
+.reg-step-label {
+  font-size: 0.72rem; font-weight: 600;
+  color: var(--text-3); text-align: center;
+  white-space: nowrap;
+}
+.reg-step-label-active { color: var(--gold-light); }
+.reg-step-bar {
+  position: absolute;
+  top: 18px; left: calc(50% + 18px);
+  right: calc(-50% + 18px);
+  height: 2px;
+  background: rgba(255,255,255,0.08);
+  border-radius: 1px;
+}
+.reg-step-bar-done { background: rgba(34,197,94,0.4); }
+
+/* ── Register card ── */
+.reg-card {
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: var(--r-lg);
+  padding: 2rem;
+  backdrop-filter: blur(14px);
+  box-shadow: 0 0 60px rgba(240,165,0,0.04), 0 12px 40px rgba(0,0,0,0.25);
+}
+.reg-card-icon {
+  font-size: 2.5rem;
+  text-align: center;
+  margin-bottom: 1rem;
+}
+.reg-title {
+  font-size: 1.7rem; font-weight: 800;
+  letter-spacing: -0.025em;
+  text-align: center; margin-bottom: 0.75rem;
+}
+.reg-sub {
+  font-size: 0.9rem; color: var(--text-2);
+  line-height: 1.7; text-align: center;
+  margin-bottom: 0.5rem;
+}
+
+/* ── Hash preview in register ── */
+.hash-preview {
+  background: rgba(240,165,0,0.06);
+  border: 1px solid rgba(240,165,0,0.2);
+  border-radius: var(--r-md);
+  padding: 1rem 1.1rem;
+  margin-top: 0.75rem;
+}
+.hash-preview-header {
+  display: flex; align-items: center; justify-content: space-between;
+  font-size: 0.78rem; font-weight: 700; color: var(--gold-light);
+  margin-bottom: 0.5rem;
+}
+.hash-preview-hint { color: var(--text-3); font-weight: 400; }
+.hash-preview-value {
+  font-family: monospace; font-size: 0.8rem;
+  color: var(--text-1); word-break: break-all;
+  line-height: 1.6;
+}
+
+/* ── Info box ── */
+.reg-info-box {
+  background: rgba(255,255,255,0.03);
+  border: 1px solid var(--card-border);
+  border-radius: var(--r-md);
+  padding: 0.875rem 1rem;
+  font-size: 0.83rem; color: var(--text-2);
+  line-height: 1.65;
+  margin-top: 1.25rem;
+}
+.reg-info-box strong { color: var(--text-1); }
+
+/* ── Wallet steps ── */
+.reg-wallet-steps {
+  display: flex; flex-direction: column; gap: 0.75rem;
+  margin-top: 1.25rem;
+}
+.reg-wallet-step {
+  display: flex; align-items: flex-start; gap: 0.75rem;
+  font-size: 0.88rem; color: var(--text-2); line-height: 1.55;
+}
+.reg-wallet-step-n {
+  width: 24px; height: 24px; border-radius: 50%;
+  background: var(--gold-glow);
+  border: 1px solid rgba(240,165,0,0.25);
+  color: var(--gold-light);
+  font-size: 0.75rem; font-weight: 800;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+
+/* ── KatibayID Card ── */
+.katibay-id-card {
+  background: linear-gradient(145deg, rgba(20,35,71,0.95) 0%, rgba(13,27,53,0.98) 100%);
+  border: 1px solid rgba(240,165,0,0.3);
+  border-radius: var(--r-lg);
+  padding: 1.75rem;
+  box-shadow:
+    0 0 0 1px rgba(240,165,0,0.08),
+    0 0 40px rgba(240,165,0,0.1),
+    0 20px 50px rgba(0,0,0,0.4);
+  position: relative;
+  overflow: hidden;
+}
+.katibay-id-card::before {
+  content: '';
+  position: absolute;
+  top: -40px; right: -40px;
+  width: 160px; height: 160px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(240,165,0,0.08) 0%, transparent 70%);
+  pointer-events: none;
+}
+.kid-header {
+  display: flex; align-items: center; gap: 0.5rem;
+  margin-bottom: 1.5rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid rgba(255,255,255,0.07);
+}
+.kid-field { margin-bottom: 1rem; }
+.kid-field-label {
+  font-size: 0.65rem; font-weight: 800;
+  letter-spacing: 0.12em; text-transform: uppercase;
+  color: var(--text-3); margin-bottom: 0.35rem;
+}
+.kid-field-row {
+  display: flex; align-items: flex-start; gap: 0.5rem;
+  justify-content: space-between;
+}
+.kid-field-value {
+  font-family: monospace; font-size: 0.8rem;
+  color: var(--text-1); word-break: break-all;
+  line-height: 1.55; flex: 1;
+}
+.kid-divider {
+  border: none; border-top: 1px solid rgba(255,255,255,0.07);
+  margin: 1rem 0 0.75rem;
+}
+
+/* ══ Role Selector ══════════════════════════════════════════════════════════ */
+.role-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.6rem;
+  margin-top: 0.5rem;
+}
+@media (max-width: 600px) { .role-grid { grid-template-columns: repeat(2, 1fr); } }
+
+.role-card {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.09);
+  border-radius: var(--r-md);
+  padding: 0.75rem 0.6rem;
+  cursor: pointer;
+  display: flex; flex-direction: column; align-items: center; gap: 0.3rem;
+  transition: all 0.2s ease;
+  text-align: center;
+}
+.role-card:hover { border-color: rgba(240,165,0,0.25); background: rgba(240,165,0,0.05); }
+.role-card-active {
+  background: rgba(240,165,0,0.1) !important;
+  border-color: rgba(240,165,0,0.4) !important;
+  box-shadow: 0 0 16px rgba(240,165,0,0.15);
+}
+.role-card-emoji { font-size: 1.35rem; }
+.role-card-label {
+  font-size: 0.72rem; font-weight: 700;
+  color: var(--text-1); line-height: 1.3;
+}
+.role-card-desc { font-size: 0.65rem; color: var(--text-3); line-height: 1.3; }
+
+/* ══ Hash Helper (in vouch form) ══════════════════════════════════════════ */
+.hash-helper { margin-bottom: 0; }
+.hash-helper-toggle {
+  display: flex; align-items: center; gap: 0.4rem;
+  background: none; border: none; cursor: pointer;
+  color: var(--gold-light);
+  font-size: 0.8rem; font-weight: 600;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  padding: 0.3rem 0; transition: color 0.2s;
+}
+.hash-helper-toggle:hover { color: var(--gold); }
+.hash-helper-body {
+  background: rgba(240,165,0,0.05);
+  border: 1px solid rgba(240,165,0,0.15);
+  border-radius: var(--r-md);
+  padding: 0.875rem;
+  margin-top: 0.5rem;
+}
+.hash-helper-result {
+  display: flex; align-items: center; gap: 0.6rem;
+  margin-top: 0.6rem; flex-wrap: wrap;
+}
+.hash-helper-value {
+  font-family: monospace; font-size: 0.77rem;
+  color: var(--gold-light); word-break: break-all;
+  flex: 1;
+}
+
+/* ══ Role Badges (on student profile) ══════════════════════════════════════ */
+.role-badge {
+  display: inline-flex; align-items: center; gap: 0.3rem;
+  font-size: 0.72rem; font-weight: 700;
+  padding: 2px 9px; border-radius: 999px;
+  margin-top: 3px;
+}
+.role-badge-gold   { background: rgba(240,165,0,0.12); border: 1px solid rgba(240,165,0,0.25);  color: var(--gold-light); }
+.role-badge-blue   { background: rgba(56,189,248,0.1); border: 1px solid rgba(56,189,248,0.25); color: var(--info); }
+.role-badge-green  { background: rgba(34,197,94,0.1);  border: 1px solid rgba(34,197,94,0.25);  color: var(--success); }
+.role-badge-purple { background: rgba(168,85,247,0.1); border: 1px solid rgba(168,85,247,0.25); color: #c084fc; }
+.role-badge-pink   { background: rgba(236,72,153,0.1); border: 1px solid rgba(236,72,153,0.25); color: #f472b6; }
+.role-badge-grey   { background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); color: var(--text-2); }

@@ -25,6 +25,24 @@ const PATHS = {
   award:    "M12 15a7 7 0 1 0 0-14 7 7 0 0 0 0 14zM8.21 13.89 7 23l5-3 5 3-1.21-9.12",
 };
 
+// ── Role metadata for badge rendering ────────────────────────────────────────
+const ROLE_META: Record<string, { emoji: string; cls: string }> = {
+  "Barangay Official":           { emoji: "🏛️", cls: "role-badge-gold" },
+  "Teacher / Professor":          { emoji: "📚", cls: "role-badge-blue" },
+  "Social Worker":               { emoji: "🏥", cls: "role-badge-green" },
+  "Neighbor / Community Member": { emoji: "🏠", cls: "role-badge-purple" },
+  "Family Friend":               { emoji: "👨‍👩‍👧", cls: "role-badge-pink" },
+  "Other":                        { emoji: "👤", cls: "role-badge-grey" },
+};
+
+function parseAttestation(message: string) {
+  const match = message.match(/^\[([^\]]+)\]\s*/);
+  if (match && ROLE_META[match[1]]) {
+    return { role: match[1], text: message.slice(match[0].length), ...ROLE_META[match[1]] };
+  }
+  return { role: null, text: message, emoji: "💬", cls: "role-badge-grey" };
+}
+
 const Spinner = () => (
   <div style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: "3rem" }}>
     <span className="spinner spinner-lg" />
@@ -248,19 +266,28 @@ export default function StudentProfilePage() {
               )}
 
               <div className="att-list">
-                {attestations.map((att, i) => (
-                  <div key={i} className="att-card">
-                    <div className="att-card-header">
-                      <AddressAvatar address={att.voucher} />
-                      <div>
-                        <div className="att-voucher">{att.voucher.slice(0, 8)}…{att.voucher.slice(-6)}</div>
-                        <div className="att-label">Community member #{i + 1}</div>
+                {attestations.map((att, i) => {
+                  const parsed = parseAttestation(att.message);
+                  return (
+                    <div key={i} className="att-card">
+                      <div className="att-card-header">
+                        <AddressAvatar address={att.voucher} />
+                        <div style={{ flex: 1 }}>
+                          <div className="att-voucher">{att.voucher.slice(0, 8)}…{att.voucher.slice(-6)}</div>
+                          {parsed.role ? (
+                            <span className={`role-badge ${parsed.cls}`}>
+                              {parsed.emoji} {parsed.role}
+                            </span>
+                          ) : (
+                            <div className="att-label">Community member #{i + 1}</div>
+                          )}
+                        </div>
+                        <div className="att-badge">On-chain ✓</div>
                       </div>
-                      <div className="att-badge">On-chain ✓</div>
+                      <div className="att-message">&ldquo;{parsed.text}&rdquo;</div>
                     </div>
-                    <div className="att-message">"{att.message}"</div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           </>
