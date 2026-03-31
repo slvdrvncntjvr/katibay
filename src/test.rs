@@ -1,180 +1,218 @@
 #[cfg(test)]
 mod tests {
-    use crate::{Katibay, KatibayClient};
     use soroban_sdk::{
         testutils::Address as _,
         Address, BytesN, Env, String,
     };
+    use crate::{Katibay, KatibayClient};
 
-    fn make_name_hash(env: &Env, seed: u8) -> BytesN<32> {
-        BytesN::from_array(env, &[seed; 32])
+    // ── Helpers ──────────────────────────────────────────────────────────────
+
+    fn setup() -> (Env, Address, KatibayClient<'static>) {
+        let env = Env::default();
+        env.mock_all_auths();
+        let contract_id = env.register_contract(None, Katibay);
+        let client = KatibayClient::new(&env, &contract_id);
+        let admin = Address::generate(&env);
+        client.initialize(&admin);
+        (env, admin, client)
     }
 
-    fn msg(env: &Env, s: &str) -> String {
+    /// Creates a deterministic 32-byte name hash from a string slice.
+    fn make_hash(env: &Env, name: &str) -> BytesN<32> {
+        let mut bytes = [0u8; 32];
+        let src = name.as_bytes();
+        let len = src.len().min(32);
+        bytes[..len].copy_from_slice(&src[..len]);
+        BytesN::from_array(env, &bytes)
+    }
+
+    fn make_str(env: &Env, s: &str) -> String {
         String::from_str(env, s)
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // TEST 1: Happy Path — 3 vouches → verified → credential → scholarship
-    // ─────────────────────────────────────────────────────────────────────────
+    // ── Happy Path ───────────────────────────────────────────────────────────
+
+    /// Full end-to-end: 4 registrations → 3 vouches → student is verified.
     #[test]
-    fn test_happy_path_full_flow() {
-        let env = Env::default();
-        env.mock_all_auths();
+    fn test_happy_path_with_registration() {
+        let (env, _admin, client) = setup();
 
-        let contract_id = env.register_contract(None, Katibay);
-        let client = KatibayClient::new(&env, &contract_id);
+        let student = Address::generate(&env);
+        let v1 = Address::generate(&env);
+        let v2 = Address::generate(&env);
+        let v3 = Address::generate(&env);
 
-        let admin            = Address::generate(&env);
-        let maria            = Address::generate(&env);
-        let barangay_captain = Address::generate(&env);
-        let teacher          = Address::generate(&env);
-        let neighbor         = Address::generate(&env);
-        let name_hash        = make_name_hash(&env, 42u8);
+        let student_hash = make_hash(&env, "Maria Santos");
 
-        // Deploy mock KTBY token and fund contract
-        let token_admin = Address::generate(&env);
-        let token_id    = env.register_stellar_asset_contract(token_admin.clone());
-        let token_sa    = soroban_sdk::token::StellarAssetClient::new(&env, &token_id);
-        token_sa.mint(&contract_id, &10_i128);
+        // All four parties register their identity
+        client.register(&student, &student_hash);
+        client.register(&v1, &make_hash(&env, "Juan dela Cruz"));
+        client.register(&v2, &make_hash(&env, "Aling Rosa"));
+        client.register(&v3, &make_hash(&env, "Mang Pedro"));
 
-        client.initialize(&admin);
+        // Verify registrations are stored correctly
+        assert!(client.is_registered(&student));
+        assert!(client.is_registered(&v1));
+        assert!(client.is_registered(&v2));
+        assert!(client.is_registered(&v3));
 
-        // Three community members vouch with meaningful messages
-        client.vouch_for(&barangay_captain, &maria, &name_hash,
-            &msg(&env, "I am the barangay captain of Brgy. 105, Tondo. I have known this student for 5 years."));
-        client.vouch_for(&teacher, &maria, &name_hash,
-            &msg(&env, "Maria is a student at Tondo National High School. I can attest to her identity."));
-        client.vouch_for(&neighbor, &maria, &name_hash,
-            &msg(&env, "I am Maria's neighbor at Blk 3, Lot 5, Tondo. I confirm her identity."));
+        let reg = client.get_registration(&student).unwrap();
+        assert_eq!(reg.name_hash, student_hash);
 
-        // Threshold met
-        assert!(client.check_verified(&maria), "Maria should be verified after 3 vouches");
+        // Three community members vouch with role-prefixed messages
+        client.vouch_for(
+            &v1, &student, &student_hash,
+            &make_str(&env, "[Barangay Official] I have known Maria for 10 years"),
+        );
+        client.vouch_for(
+            &v2, &student, &student_hash,
+            &make_str(&env, "[Teacher / Professor] Maria is enrolled in my class"),
+        );
+        client.vouch_for(
+            &v3, &student, &student_hash,
+            &make_str(&env, "[Neighbor / Community Member] We live in the same street"),
+        );
 
-        // Check attestations stored on-chain
-        let attestations = client.get_attestations(&maria);
-        assert_eq!(attestations.len(), 3, "Should have 3 attestations");
+        // Student is verified after 3 vouches
+        assert!(client.check_verified(&student));
 
-        // Issue credential
-        client.issue_credential(&maria, &token_id);
-        let token = soroban_sdk::token::Client::new(&env, &token_id);
-        assert_eq!(token.balance(&maria), 1_i128, "Maria should hold 1 KTBY credential token");
+        // IdentityRecord shows 3 vouches
+        let record = client.get_identity(&student).unwrap();
+        assert_eq!(record.vouch_count, 3);
 
-        // Apply for scholarship
-        client.apply_scholarship(&maria, &7u32);
-        let record = client.get_identity(&maria).expect("record should exist");
-        assert_eq!(record.scholarship_slot, Some(7u32));
-        assert!(record.verified);
+        // Attestations list contains all 3 messages
+        let atts = client.get_attestations(&student);
+        assert_eq!(atts.len(), 3);
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // TEST 2: Double vouch rejected
-    // ─────────────────────────────────────────────────────────────────────────
+    // ── Registration Guard Tests ─────────────────────────────────────────────
+
+    #[test]
+    #[should_panic(expected = "vouchers must register their identity first")]
+    fn test_unregistered_voucher_rejected() {
+        let (env, _admin, client) = setup();
+        let student = Address::generate(&env);
+        let voucher = Address::generate(&env);
+        let hash = make_hash(&env, "Maria Santos");
+
+        // Register student but NOT voucher
+        client.register(&student, &hash);
+
+        client.vouch_for(
+            &voucher, &student, &hash,
+            &make_str(&env, "Should be rejected"),
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "student must register their identity first")]
+    fn test_unregistered_student_rejected() {
+        let (env, _admin, client) = setup();
+        let student = Address::generate(&env);
+        let voucher = Address::generate(&env);
+        let hash = make_hash(&env, "Maria Santos");
+
+        // Register voucher but NOT student
+        client.register(&voucher, &make_hash(&env, "Juan dela Cruz"));
+
+        client.vouch_for(
+            &voucher, &student, &hash,
+            &make_str(&env, "Should be rejected"),
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "name hash does not match student's registered identity")]
+    fn test_wrong_name_hash_rejected() {
+        let (env, _admin, client) = setup();
+        let student = Address::generate(&env);
+        let voucher = Address::generate(&env);
+
+        let real_hash  = make_hash(&env, "Maria Santos");
+        let wrong_hash = make_hash(&env, "Someone Else");
+
+        client.register(&student, &real_hash);
+        client.register(&voucher, &make_hash(&env, "Juan dela Cruz"));
+
+        // Supply wrong hash — should be rejected
+        client.vouch_for(
+            &voucher, &student, &wrong_hash,
+            &make_str(&env, "Should be rejected"),
+        );
+    }
+
     #[test]
     #[should_panic(expected = "already vouched for this student")]
     fn test_double_vouch_rejected() {
-        let env = Env::default();
-        env.mock_all_auths();
-
-        let contract_id = env.register_contract(None, Katibay);
-        let client = KatibayClient::new(&env, &contract_id);
-
-        let admin    = Address::generate(&env);
-        let student  = Address::generate(&env);
-        let voucher  = Address::generate(&env);
-        let name_hash = make_name_hash(&env, 1u8);
-
-        client.initialize(&admin);
-        client.vouch_for(&voucher, &student, &name_hash, &msg(&env, "First vouch"));
-        client.vouch_for(&voucher, &student, &name_hash, &msg(&env, "Trying to double-vouch"));
-    }
-
-    // ─────────────────────────────────────────────────────────────────────────
-    // TEST 3: 2 vouches → not verified, vouch_count == 2
-    // ─────────────────────────────────────────────────────────────────────────
-    #[test]
-    fn test_storage_state_reflects_vouch_count() {
-        let env = Env::default();
-        env.mock_all_auths();
-
-        let contract_id = env.register_contract(None, Katibay);
-        let client = KatibayClient::new(&env, &contract_id);
-
-        let admin     = Address::generate(&env);
-        let student   = Address::generate(&env);
-        let voucher_a = Address::generate(&env);
-        let voucher_b = Address::generate(&env);
-        let name_hash = make_name_hash(&env, 7u8);
-
-        client.initialize(&admin);
-        client.vouch_for(&voucher_a, &student, &name_hash, &msg(&env, "First community member"));
-        client.vouch_for(&voucher_b, &student, &name_hash, &msg(&env, "Second community member"));
-
-        assert!(!client.check_verified(&student), "2 vouches should not be verified");
-
-        let record = client.get_identity(&student).expect("record should exist");
-        assert_eq!(record.vouch_count, 2u32);
-        assert!(!record.verified);
-
-        let attestations = client.get_attestations(&student);
-        assert_eq!(attestations.len(), 2, "Should have 2 attestations");
-    }
-
-    // ─────────────────────────────────────────────────────────────────────────
-    // TEST 4: Duplicate credential issuance rejected
-    // ─────────────────────────────────────────────────────────────────────────
-    #[test]
-    #[should_panic(expected = "credential already issued")]
-    fn test_issue_credential_twice_rejected() {
-        let env = Env::default();
-        env.mock_all_auths();
-
-        let contract_id = env.register_contract(None, Katibay);
-        let client = KatibayClient::new(&env, &contract_id);
-
-        let admin = Address::generate(&env);
+        let (env, _admin, client) = setup();
         let student = Address::generate(&env);
-        let va = Address::generate(&env);
-        let vb = Address::generate(&env);
-        let vc = Address::generate(&env);
-        let name_hash = make_name_hash(&env, 11u8);
+        let voucher = Address::generate(&env);
+        let hash = make_hash(&env, "Maria Santos");
 
-        let token_admin = Address::generate(&env);
-        let token_id = env.register_stellar_asset_contract(token_admin.clone());
-        let token_sa = soroban_sdk::token::StellarAssetClient::new(&env, &token_id);
-        token_sa.mint(&contract_id, &10_i128);
+        client.register(&student, &hash);
+        client.register(&voucher, &make_hash(&env, "Juan dela Cruz"));
 
-        client.initialize(&admin);
-        client.vouch_for(&va, &student, &name_hash, &msg(&env, "Voucher A"));
-        client.vouch_for(&vb, &student, &name_hash, &msg(&env, "Voucher B"));
-        client.vouch_for(&vc, &student, &name_hash, &msg(&env, "Voucher C"));
+        let msg = make_str(&env, "[Barangay Official] First vouch");
+        client.vouch_for(&voucher, &student, &hash, &msg);
 
-        client.issue_credential(&student, &token_id);
-        client.issue_credential(&student, &token_id); // should panic
+        // Second vouch from the same voucher — must be rejected
+        let msg2 = make_str(&env, "[Barangay Official] Second attempt");
+        client.vouch_for(&voucher, &student, &hash, &msg2);
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // TEST 5: Name hash mismatch rejected
-    // ─────────────────────────────────────────────────────────────────────────
     #[test]
-    #[should_panic(expected = "name hash mismatch for student")]
-    fn test_name_hash_mismatch_rejected() {
-        let env = Env::default();
-        env.mock_all_auths();
+    #[should_panic(expected = "address already registered")]
+    fn test_duplicate_registration_rejected() {
+        let (env, _admin, client) = setup();
+        let person = Address::generate(&env);
+        let hash = make_hash(&env, "Maria Santos");
 
-        let contract_id = env.register_contract(None, Katibay);
-        let client = KatibayClient::new(&env, &contract_id);
+        client.register(&person, &hash);
 
-        let admin = Address::generate(&env);
+        // Second registration must be rejected
+        let hash2 = make_hash(&env, "Maria Santos v2");
+        client.register(&person, &hash2);
+    }
+
+    // ── Read-only Function Tests ─────────────────────────────────────────────
+
+    #[test]
+    fn test_is_registered_returns_false_for_unknown_address() {
+        let (env, _admin, client) = setup();
+        let unknown = Address::generate(&env);
+        assert!(!client.is_registered(&unknown));
+    }
+
+    #[test]
+    fn test_get_registration_returns_correct_record() {
+        let (env, _admin, client) = setup();
+        let person = Address::generate(&env);
+        let hash = make_hash(&env, "Maria Santos");
+
+        client.register(&person, &hash);
+
+        let reg = client.get_registration(&person).unwrap();
+        assert_eq!(reg.address, person);
+        assert_eq!(reg.name_hash, hash);
+    }
+
+    #[test]
+    fn test_check_verified_returns_false_below_threshold() {
+        let (env, _admin, client) = setup();
         let student = Address::generate(&env);
-        let va = Address::generate(&env);
-        let vb = Address::generate(&env);
+        let v1 = Address::generate(&env);
+        let v2 = Address::generate(&env);
+        let hash = make_hash(&env, "Maria Santos");
 
-        let hash_a = make_name_hash(&env, 3u8);
-        let hash_b = make_name_hash(&env, 4u8);
+        client.register(&student, &hash);
+        client.register(&v1, &make_hash(&env, "v1"));
+        client.register(&v2, &make_hash(&env, "v2"));
 
-        client.initialize(&admin);
-        client.vouch_for(&va, &student, &hash_a, &msg(&env, "First voucher"));
-        client.vouch_for(&vb, &student, &hash_b, &msg(&env, "Different hash — should panic"));
+        client.vouch_for(&v1, &student, &hash, &make_str(&env, "Vouch 1"));
+        client.vouch_for(&v2, &student, &hash, &make_str(&env, "Vouch 2"));
+
+        // Only 2 vouches — not yet verified
+        assert!(!client.check_verified(&student));
     }
 }

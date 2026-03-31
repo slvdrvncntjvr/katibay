@@ -103,11 +103,12 @@ export default function StudentProfilePage() {
   const rawAddress = params?.address as string;
   const address = rawAddress ? decodeURIComponent(rawAddress) : "";
 
-  const { getIdentity, getAttestations, checkVerified } = useKatibay();
+  const { getIdentity, getAttestations, checkVerified, isRegistered } = useKatibay();
 
   const [identity, setIdentity] = useState<IdentityRecord | null>(null);
   const [attestations, setAttestations] = useState<Attestation[]>([]);
   const [verified, setVerified] = useState<boolean>(false);
+  const [registered, setRegistered] = useState<boolean>(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -116,14 +117,16 @@ export default function StudentProfilePage() {
     (async () => {
       setLoading(true);
       try {
-        const [id, atts, ver] = await Promise.all([
+        const [id, atts, ver, reg] = await Promise.all([
           getIdentity(address),
           getAttestations(address),
           checkVerified(address),
+          isRegistered(address),
         ]);
         setIdentity(id);
         setAttestations(atts);
         setVerified(!!ver);
+        setRegistered(!!reg);
       } catch (e: any) {
         setError(e.message || "Failed to load profile");
       } finally {
@@ -188,11 +191,19 @@ export default function StudentProfilePage() {
             <div className="profile-card">
               <div className="profile-card-top">
                 <div className="profile-left">
-                  <div className={`profile-status-badge ${verified ? "verified" : "pending"}`}>
-                    {verified
-                      ? <><Icon d={PATHS.check} size={14} /> VERIFIED</>
-                      : <><Icon d={PATHS.clock} size={14} /> PENDING</>
-                    }
+                  <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", flexWrap: "wrap", marginBottom: "0.5rem" }}>
+                    <div className={`profile-status-badge ${verified ? "verified" : "pending"}`}>
+                      {verified
+                        ? <><Icon d={PATHS.check} size={14} /> VERIFIED</>
+                        : <><Icon d={PATHS.clock} size={14} /> PENDING</>
+                      }
+                    </div>
+                    <div className={`profile-status-badge ${registered ? "verified" : "pending"}`}
+                      style={{ background: registered ? "rgba(56,189,248,0.12)" : undefined,
+                        borderColor: registered ? "rgba(56,189,248,0.3)" : undefined,
+                        color: registered ? "var(--info)" : undefined }}>
+                      {registered ? "🔗 Registered" : "⚠️ Not Registered"}
+                    </div>
                   </div>
                   <h1 className="profile-title">Student Identity</h1>
                   <div className="profile-address-row">

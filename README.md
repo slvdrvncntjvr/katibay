@@ -11,23 +11,24 @@
 | | Link |
 |---|---|
 | **Frontend (Vercel)** | https://katibay.vercel.app |
-| **Smart Contract (Testnet)** | `CCCGDVFH7JNVVBFO563MRFK4V2KX4NYJ6ZCUDIPCPOG3HLKRIRZUBXEZ` |
-| **Stellar Expert Explorer** | [View Contract on Testnet](https://stellar.expert/explorer/testnet/contract/CCCGDVFH7JNVVBFO563MRFK4V2KX4NYJ6ZCUDIPCPOG3HLKRIRZUBXEZ) |
+| **Smart Contract (Testnet)** | `CATFHPL7726YSPR24CDWGEPFF2L6TR4IX4BDTPIGOBUS7O35LTM2X56P` |
+| **Stellar Expert Explorer** | [View Contract on Testnet](https://stellar.expert/explorer/testnet/contract/CATFHPL7726YSPR24CDWGEPFF2L6TR4IX4BDTPIGOBUS7O35LTM2X56P) |
 
 ---
 
-## ✅ Try It Live — Verified Test Student
+## ✅ Try It Live — Verified & Registered Test Student
 
-A real student identity has been registered on the contract with **3 on-chain community attestations**.
+A real student identity has been **registered on-chain** with **3 on-chain community attestations** from 3 separately registered vouchers (Barangay Official, Teacher, Neighbor).
 
-**Student Address:** `GBWDC266PYWCVDCRJXLKEEUTBHFLSPSH7FYIPVRWCSVSIZRBGOAKJ6T4`
+**Student Address:** `GA7SB3REG3SNRMLHFJNZ5M3W33VOSUBZUYL6URGADAPILTJYPVWJIHPT`
 
-> 🔗 **[View this student's live profile →](https://katibay.vercel.app/student/GBWDC266PYWCVDCRJXLKEEUTBHFLSPSH7FYIPVRWCSVSIZRBGOAKJ6T4)**
+> 🔗 **[View this student's live profile →](https://katibay.vercel.app/student/GA7SB3REG3SNRMLHFJNZ5M3W33VOSUBZUYL6URGADAPILTJYPVWJIHPT)**
 
 On the profile page you will see:
 - ✅ **VERIFIED** badge — threshold of 3 vouches met
+- 🔗 **Registered** badge — identity committed on-chain before any vouch accepted
 - 🔵 Full vouch progress ring (3/3)
-- 📜 All 3 community attestation messages stored permanently on-chain
+- 📜 All 3 attestations with **role badges** (🏛️ Barangay Official, 📚 Teacher, 🏠 Neighbor)
 - 🔗 Links to Stellar Expert and the live contract
 
 ---
@@ -42,8 +43,6 @@ On the profile page you will see:
 
 ### Smart Contract on Stellar Expert (Testnet)
 ![Stellar Expert showing contract transaction history with vouch_for calls and attestation message strings visible on-chain](https://raw.githubusercontent.com/slvdrvncntjvr/katibay/main/docs/screenshots/explorer.png)
-
-> The Stellar Expert screenshot shows the actual attestation messages (e.g. *"I have known this child for 5 years"*) stored as string parameters in the `vouch_for()` transactions — permanently on the Stellar ledger.
 
 ---
 
@@ -61,9 +60,9 @@ This is the Philippine ID loop: **you need an ID to get an ID.** Every record is
 
 ## 💡 The Solution
 
-Katibay puts community trust on Stellar's immutable ledger. Trusted members — a barangay captain, a teacher, a neighbor — digitally co-sign a student's identity on-chain **with a written attestation message**. Once **3 vouches** are recorded, the Soroban contract automatically issues a tamper-proof **KTBY credential token** to the student's Stellar wallet.
+Katibay puts community trust on Stellar's immutable ledger. Both students and vouchers must **register their identity on-chain** (committing their name hash to their wallet address) before any vouching can happen. Once registered, trusted members — a barangay captain, a teacher, a neighbor — digitally co-sign a student's identity with a **written attestation message and their role**. Once **3 vouches** are recorded, the Soroban contract marks the student as verified.
 
-That token unlocks scholarship applications. Permanently. On a ledger no politician can delete and no fire can burn.
+That verification unlocks scholarship applications. Permanently. On a ledger no politician can delete and no fire can burn.
 
 ---
 
@@ -80,8 +79,8 @@ That token unlocks scholarship applications. Permanently. On a ledger no politic
 
 ## 📋 Smart Contract
 
-**Contract ID:** `CCCGDVFH7JNVVBFO563MRFK4V2KX4NYJ6ZCUDIPCPOG3HLKRIRZUBXEZ`
-**Network:** Stellar Testnet
+**Contract ID:** `CATFHPL7726YSPR24CDWGEPFF2L6TR4IX4BDTPIGOBUS7O35LTM2X56P`  
+**Network:** Stellar Testnet  
 **Admin:** `GDLCNF5BQAV43DNA6N6U6FHU5T6ONI7DPL4U4LHJBKDEQVATBTR3HMTW`
 
 ### Contract Functions
@@ -89,19 +88,38 @@ That token unlocks scholarship applications. Permanently. On a ledger no politic
 | Function | Description |
 |---|---|
 | `initialize(admin)` | Sets up the contract with an admin address. Can only be called once. |
-| `vouch_for(voucher, student, name_hash, message)` | Community member vouches on-chain with a written attestation message. Prevents double-vouching. Immutable. |
-| `get_attestations(student)` | Returns all `Attestation { voucher, message }` records for a student. Read-only. |
+| `register(registrant, name_hash)` | **NEW** — Permanently commits a SHA-256 name hash to a wallet. Required before vouching. Immutable. |
+| `is_registered(address)` | **NEW** — Returns `true` if an address has registered. Read-only. |
+| `get_registration(address)` | **NEW** — Returns the `RegistrationRecord` for an address. Read-only. |
+| `vouch_for(voucher, student, name_hash, message)` | Community member vouches on-chain. **Requires both voucher and student to be registered.** Prevents double-vouching. Role-prefixed messages. |
+| `get_attestations(student)` | Returns all `Attestation { voucher, message }` records. Read-only. |
 | `check_verified(student)` | Returns `true` if the student has received ≥ 3 vouches. Read-only. |
-| `get_identity(student)` | Returns the full `IdentityRecord` for a student. Read-only. |
+| `get_identity(student)` | Returns the full `IdentityRecord`. Read-only. |
 | `issue_credential(student, token_address)` | Admin mints 1 KTBY credential token to a verified student's wallet. |
 | `apply_scholarship(student, school_id)` | Verified student applies for a scholarship slot on-chain. |
+
+### Anti-Gaming System (On-Chain Enforced)
+
+The `vouch_for()` function enforces all 4 guards at the **contract level** — not just the UI:
+
+```
+1. Voucher must be registered    → panic!("vouchers must register their identity first")
+2. Student must be registered    → panic!("student must register their identity first")
+3. Name hash must match          → panic!("name hash does not match student's registered identity")
+4. No double-vouching            → panic!("already vouched for this student")
+```
 
 ### Data Stored On-Chain
 
 ```rust
+struct RegistrationRecord {
+    address: Address,
+    name_hash: BytesN<32>,   // SHA-256 of name, permanently bound to wallet
+}
+
 struct IdentityRecord {
     student: Address,
-    name_hash: BytesN<32>,   // SHA-256 of student's full name (privacy-preserving)
+    name_hash: BytesN<32>,
     vouch_count: u32,
     verified: bool,
     scholarship_slot: Option<u32>,
@@ -109,7 +127,7 @@ struct IdentityRecord {
 
 struct Attestation {
     voucher: Address,        // Who vouched
-    message: String,         // Their written statement — permanently on ledger
+    message: String,         // "[Role] Written statement" — permanently on ledger
 }
 ```
 
@@ -117,20 +135,24 @@ struct Attestation {
 
 ## 🧪 Tests
 
-All 5 tests pass:
+All 9 tests pass:
 
 ```bash
 cargo test
 ```
 
 ```
-test tests::test_happy_path_full_flow                ... ok
-test tests::test_double_vouch_rejected               ... ok
-test tests::test_storage_state_reflects_vouch_count  ... ok
-test tests::test_issue_credential_twice_rejected     ... ok
-test tests::test_name_hash_mismatch_rejected         ... ok
+test test::tests::test_happy_path_with_registration              ... ok
+test test::tests::test_unregistered_voucher_rejected             ... ok (should panic)
+test test::tests::test_unregistered_student_rejected             ... ok (should panic)
+test test::tests::test_wrong_name_hash_rejected                  ... ok (should panic)
+test test::tests::test_double_vouch_rejected                     ... ok (should panic)
+test test::tests::test_duplicate_registration_rejected           ... ok (should panic)
+test test::tests::test_is_registered_returns_false_for_unknown   ... ok
+test test::tests::test_get_registration_returns_correct_record   ... ok
+test test::tests::test_check_verified_returns_false_below_threshold ... ok
 
-test result: ok. 5 passed; 0 failed
+test result: ok. 9 passed; 0 failed
 ```
 
 ---
@@ -170,38 +192,45 @@ npm run dev
 
 ## 📖 Usage Guide
 
-### Using the Live App
+### Registering as a Student
 
-1. Install [Freighter](https://www.freighter.app/) and switch it to **Testnet**
-2. Open [katibay.vercel.app](https://katibay.vercel.app)
-3. Click **Connect Freighter**
+1. Open [katibay.vercel.app/register](https://katibay.vercel.app/register)
+2. Enter your full name → SHA-256 hash generated instantly in-browser
+3. Connect Freighter (Testnet mode)
+4. Click **"⛓️ Commit My Identity On-Chain"** — signs a `register()` transaction
+5. Download your **KatibayID card** with your wallet address and name hash
+6. Share these with your trusted community members
 
-### Submitting a Vouch
+### Submitting a Vouch (Voucher Flow)
 
-1. Go to the **Submit Vouch** tab
-2. Enter the student's Stellar address (`G...`)
-3. Enter the SHA-256 hash of the student's full name (64-char hex)
-   - Generate: `echo -n "Maria Santos" | sha256sum`
-4. Write a community attestation message (e.g. *"I am the barangay captain of Brgy. 105, Tondo..."*)
-5. Click **Submit Attestation on Stellar** — sign in Freighter
+Vouchers must also be registered. Then:
+
+1. Open [katibay.vercel.app](https://katibay.vercel.app) → **Submit Vouch** tab
+2. Enter the student's Stellar address
+3. Use the **"Calculate from name"** hash helper OR paste the student's hash
+4. Select your **role** (Barangay Official, Teacher, Social Worker, Neighbor, Family Friend)
+5. Write your attestation message
+6. Click **Submit** — message is prefixed with your role and stored permanently on-chain
 
 ### Looking Up a Student
 
-1. Go to **Student Lookup**
-2. Enter a student address and click search
-3. See their vouch progress and click **View Full Profile** for the complete identity card with all attestations
+1. Go to **Student Lookup** tab
+2. Enter any student address
+3. See their vouch progress and **View Full Profile** for attestations with role badges
 
-### View the Test Student
+### View the Test Student (Pre-Verified)
 
-The student `GBWDC266PYWCVDCRJXLKEEUTBHFLSPSH7FYIPVRWCSVSIZRBGOAKJ6T4` has 3 on-chain vouches and is **VERIFIED**.
+```
+Student Address: GA7SB3REG3SNRMLHFJNZ5M3W33VOSUBZUYL6URGADAPILTJYPVWJIHPT
+Student Name: Maria Santos
+Name Hash: e0c862f7b73c55146f2a054566dbe7844b27a4d4903f7489904c044a1a1ab5af
+```
 
-👉 [katibay.vercel.app/student/GBWDC266PYWCVDCRJXLKEEUTBHFLSPSH7FYIPVRWCSVSIZRBGOAKJ6T4](https://katibay.vercel.app/student/GBWDC266PYWCVDCRJXLKEEUTBHFLSPSH7FYIPVRWCSVSIZRBGOAKJ6T4)
+👉 [katibay.vercel.app/student/GA7SB3REG3SNRMLHFJNZ5M3W33VOSUBZUYL6URGADAPILTJYPVWJIHPT](https://katibay.vercel.app/student/GA7SB3REG3SNRMLHFJNZ5M3W33VOSUBZUYL6URGADAPILTJYPVWJIHPT)
 
 ---
 
 ## 🚀 Deploy Your Own Contract (Optional)
-
-The contract is already live on testnet. To redeploy your own:
 
 ```bash
 # Build
@@ -221,6 +250,15 @@ stellar contract invoke \
   --network testnet \
   -- initialize \
   --admin <YOUR_G_ADDRESS>
+
+# Register and vouch (both parties must register first)
+stellar contract invoke --id <CONTRACT_ID> --source student-key --network testnet -- register \
+  --registrant <STUDENT_ADDRESS> --name_hash <SHA256_HEX>
+
+stellar contract invoke --id <CONTRACT_ID> --source voucher-key --network testnet -- vouch_for \
+  --voucher <VOUCHER_ADDRESS> --student <STUDENT_ADDRESS> \
+  --name_hash <SHA256_HEX> \
+  --message "[Barangay Official] I have known this student for 5 years..."
 ```
 
 ---
@@ -231,20 +269,21 @@ stellar contract invoke \
 katibay/
 ├── Cargo.toml              ← Soroban smart contract config
 ├── src/
-│   ├── lib.rs              ← Contract logic (Rust): vouch_for, get_attestations, etc.
-│   └── test.rs             ← 5 tests (all passing)
+│   ├── lib.rs              ← Contract logic (Rust): register, vouch_for, get_attestations, etc.
+│   └── test.rs             ← 9 tests (all passing)
 ├── frontend/               ← Next.js React frontend
 │   ├── src/
 │   │   ├── app/
-│   │   │   ├── page.tsx              ← Landing page + vouch/lookup UI
-│   │   │   ├── student/[address]/    ← Student profile page (dynamic route)
+│   │   │   ├── page.tsx              ← Landing page + vouch/lookup UI with role selector
+│   │   │   ├── register/page.tsx     ← Student registration + on-chain identity commitment
+│   │   │   ├── student/[address]/    ← Student profile (role badges, attestation feed)
 │   │   │   ├── layout.tsx            ← Root layout with Toaster
 │   │   │   └── globals.css           ← Design system (navy/gold glassmorphism)
 │   │   └── hooks/
-│   │       └── KatibayContext.tsx    ← Stellar SDK + Freighter integration
+│   │       └── KatibayContext.tsx    ← Stellar SDK + Freighter + registerIdentity, isRegistered
 │   ├── .env.local          ← Testnet config (NEXT_PUBLIC_ vars)
 │   └── vercel.json         ← Vercel deployment config
-├── DEPLOY.md               ← Deployment runbook
+├── docs/screenshots/       ← UI screenshots for README
 └── README.md               ← This file
 ```
 
@@ -254,21 +293,22 @@ katibay/
 
 | Feature | Role in Katibay |
 |---|---|
-| **Soroban Smart Contracts** | Multi-sig vouching, on-chain attestation storage, threshold enforcement, credential issuance |
-| **Custom Token (KTBY)** | On-chain credential token minted to verified students — composable with any Stellar dApp |
-| **Persistent Storage** | `Attestation { voucher, message }` structs stored permanently per student |
-| **Stellar Events** | Every vouch emits `VOUCHED`, credential emits `CRED`, scholarship emits `SCHOLAR` |
-| **Freighter Wallet** | Browser-native transaction signing — no private keys exposed |
+| **Soroban Smart Contracts** | Registration system, anti-gaming guards, attestation storage, credential issuance |
+| **Persistent Storage** | `RegistrationRecord`, `IdentityRecord`, `Attestation` structs per address |
+| **Stellar Events** | `REGD` (registration), `VOUCHED`, `CRED` (credential issued), `SCHOLAR` |
+| **Freighter Wallet** | Browser-native signing for `register()` and `vouch_for()` transactions |
+| **Web Crypto API** | SHA-256 name hashing in-browser — no terminal needed |
 
 ---
 
 ## 🏆 Why Katibay
 
 1. **Real problem, real population** — 4.6M out-of-school youth in PH trapped by the ID loop
-2. **On-chain attestations** — vouchers leave written statements permanently on the ledger, readable by anyone
-3. **Full-stack** — deployed Soroban contract + production Next.js on Vercel
-4. **Live & verifiable** — test student with 3 vouches publicly accessible on Stellar testnet
-5. **Distinctly Filipino** — barangay as the trust unit, CHED pipeline as the use case
+2. **On-chain registration** — both students and vouchers commit their identity; prevents anonymous fake vouching
+3. **Contract-enforced anti-gaming** — 4 guards enforced at the Soroban level, not just the UI
+4. **On-chain attestation messages** — vouchers leave role-prefixed written statements permanently on the ledger
+5. **Full-stack** — deployed Soroban contract + production Next.js on Vercel
+6. **Distinctly Filipino** — barangay as the trust unit, CHED pipeline as the use case
 
 ---
 

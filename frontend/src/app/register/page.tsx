@@ -36,15 +36,17 @@ function AddressAvatar({ address }: { address: string }) {
   );
 }
 
-const STEPS = ["Your Identity", "Connect Wallet", "Your KatibayID"];
+const STEPS = ["Your Identity", "Connect & Register", "Your KatibayID"];
 
 export default function RegisterPage() {
-  const { address, connect, isConnecting } = useKatibay();
+  const { address, connect, isConnecting, registerIdentity, isRegistered } = useKatibay();
 
   const [step, setStep] = useState(0);
   const [name, setName] = useState("");
   const [hash, setHash] = useState("");
   const [copied, setCopied] = useState<string | null>(null);
+  const [registering, setRegistering] = useState(false);
+  const [alreadyRegistered, setAlreadyRegistered] = useState(false);
 
   // Live SHA-256 as user types (debounced 120ms)
   useEffect(() => {
@@ -54,12 +56,39 @@ export default function RegisterPage() {
     return () => clearTimeout(t);
   }, [name]);
 
-  // Auto-advance when wallet connects in step 1
+  // When wallet connects, check if already registered
   useEffect(() => {
-    if (address && step === 1) {
-      setTimeout(() => setStep(2), 600);
+    if (address && step === 1 && hash) {
+      isRegistered(address).then((reg) => {
+        if (reg) {
+          setAlreadyRegistered(true);
+          setTimeout(() => setStep(2), 800);
+        }
+      });
     }
-  }, [address, step]);
+  }, [address, step, hash]);
+
+  const handleRegisterOnChain = async () => {
+    if (!address || !hash) return;
+    setRegistering(true);
+    const tid = toast.loading("Committing identity to Stellar ledger…");
+    try {
+      await registerIdentity(hash);
+      toast.success("Identity registered on-chain! 🎉", { id: tid });
+      setStep(2);
+    } catch (e: any) {
+      const msg = e?.message || String(e);
+      if (msg.includes("already registered")) {
+        toast.success("Already registered — loading your KatibayID.", { id: tid, icon: "✓" });
+        setAlreadyRegistered(true);
+        setStep(2);
+      } else {
+        toast.error(msg, { id: tid });
+      }
+    } finally {
+      setRegistering(false);
+    }
+  };
 
   const handleCopy = (text: string, label: string) => {
     navigator.clipboard.writeText(text);
@@ -171,14 +200,14 @@ https://katibay.vercel.app`;
           </div>
         )}
 
-        {/* ── Step 1: Connect Wallet ── */}
+        {/* ── Step 1: Connect Wallet + Register On-Chain ── */}
         {step === 1 && (
           <div className="reg-card" style={{ animation: "fadeUp 0.4s ease" }}>
             <div className="reg-card-icon">👛</div>
-            <h1 className="reg-title">Connect your Stellar wallet</h1>
+            <h1 className="reg-title">Connect & Register On-Chain</h1>
             <p className="reg-sub">
-              Your Freighter wallet address becomes your student ID on-chain.
-              No personal data is linked — just your public address.
+              Connect Freighter, then commit your name hash permanently to the
+              Stellar ledger. This is a real blockchain transaction.
             </p>
 
             {!address ? (
@@ -195,24 +224,38 @@ https://katibay.vercel.app`;
                     </div>
                   ))}
                 </div>
-
                 <button className="btn btn-gold btn-full" style={{ marginTop: "1.5rem" }}
                   onClick={connect} disabled={isConnecting}>
                   {isConnecting ? <><span className="spinner" /> Connecting…</> : "Connect Freighter →"}
                 </button>
-                <button className="btn btn-ghost btn-sm"
-                  style={{ width: "100%", marginTop: "0.75rem" }}
-                  onClick={() => setStep(2)}>
-                  Skip (show hash only)
-                </button>
               </>
             ) : (
-              <div style={{ textAlign: "center", padding: "1.5rem 0" }}>
-                <div className="wallet-address" style={{ justifyContent: "center", width: "fit-content", margin: "0 auto 0.75rem" }}>
+              <div style={{ marginTop: "1rem" }}>
+                <div className="wallet-address" style={{ justifyContent: "center", width: "fit-content", margin: "0 auto 1.25rem" }}>
                   <span className="wallet-dot" />
                   {address.slice(0, 8)}…{address.slice(-6)}
                 </div>
-                <p style={{ color: "var(--success)", fontWeight: 700 }}>✓ Wallet connected — redirecting…</p>
+
+                <div className="reg-info-box" style={{ marginBottom: "1.25rem" }}>
+                  <strong>📜 What this does:</strong> Calls <code style={{ fontSize: "0.8rem", color: "var(--gold-light)" }}>register(name_hash)</code> on the
+                  Katibay Soroban contract. Your name hash is permanently bound to your wallet address on-chain.
+                  No one can impersonate you or vouch for a student using your wallet without your signature.
+                </div>
+
+                <button
+                  className="btn btn-gold btn-full"
+                  onClick={handleRegisterOnChain}
+                  disabled={registering || !hash}
+                >
+                  {registering
+                    ? <><span className="spinner" /> Broadcasting to Stellar Testnet…</>
+                    : "⛓️ Commit My Identity On-Chain"}
+                </button>
+                <button className="btn btn-ghost btn-sm"
+                  style={{ width: "100%", marginTop: "0.75rem" }}
+                  onClick={() => setStep(2)}>
+                  Skip (offline — hash only)
+                </button>
               </div>
             )}
           </div>
@@ -222,12 +265,24 @@ https://katibay.vercel.app`;
         {step === 2 && (
           <div style={{ animation: "fadeUp 0.4s ease" }}>
             <div style={{ textAlign: "center", marginBottom: "1.75rem" }}>
-              <div className="reg-card-icon">🎉</div>
-              <h1 className="reg-title">Your KatibayID is ready!</h1>
+              <div className="reg-card-icon">{alreadyRegistered ? "✅" : "🎉"}</div>
+              <h1 className="reg-title">
+                {alreadyRegistered ? "Already Registered!" : "Identity Committed On-Chain!"}
+              </h1>
               <p className="reg-sub">
-                Share <strong>your wallet address</strong> and <strong>name hash</strong> with at least 3
-                trusted community members. They can vouch for you at <strong>katibay.vercel.app</strong>.
+                {alreadyRegistered
+                  ? "Your wallet is already registered. Here is your KatibayID."
+                  : <>Your name hash is now <strong>permanently bound</strong> to your wallet address on the Stellar Testnet. You can now receive vouches.</>}
               </p>
+              {!alreadyRegistered && address && (
+                <a
+                  href={`https://stellar.expert/explorer/testnet/account/${address}`}
+                  target="_blank" rel="noopener noreferrer"
+                  style={{ fontSize: "0.8rem", color: "var(--gold-light)", textDecoration: "underline" }}
+                >
+                  View registration TX on Stellar Expert →
+                </a>
+              )}
             </div>
 
             {/* ── Physical-style KatibayID Card ── */}

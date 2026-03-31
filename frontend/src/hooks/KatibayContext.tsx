@@ -36,11 +36,19 @@ export interface IdentityRecord {
   scholarship_slot?: number;
 }
 
+export interface RegistrationRecord {
+  address: string;
+  name_hash: string;
+}
+
 interface KatibayContextType {
   address: string | null;
   isConnecting: boolean;
   connect: () => Promise<void>;
   disconnect: () => void;
+  registerIdentity: (nameHashHex: string) => Promise<any>;
+  isRegistered: (addr: string) => Promise<boolean>;
+  getRegistration: (addr: string) => Promise<RegistrationRecord | null>;
   vouchForStudent: (student: string, hashHex: string, message: string) => Promise<any>;
   checkVerified: (student: string) => Promise<boolean | null>;
   getIdentity: (student: string) => Promise<IdentityRecord | null>;
@@ -110,6 +118,69 @@ export function KatibayProvider({ children }: { children: ReactNode }) {
     const sim = await server.simulateTransaction(tx);
     if (rpc.Api.isSimulationError(sim)) throw new Error((sim as any).error || "Simulation failed.");
     return sim.result?.retval;
+  };
+
+  // ── register() — commits name_hash permanently to caller's wallet ──────────
+  const registerIdentity = async (nameHashHex: string) => {
+    if (!address) throw new Error("Connect your wallet first.");
+    if (!/^[0-9a-fA-F]{64}$/.test(nameHashHex)) throw new Error("Name hash must be 64 hex chars.");
+
+    const bytes = new Uint8Array(32);
+    for (let i = 0; i < 32; i++) bytes[i] = parseInt(nameHashHex.slice(i * 2, i * 2 + 2), 16);
+
+    const server = getServer();
+    const account = await server.getAccount(address);
+
+    const op = new Contract(CONTRACT_ID).call(
+      "register",
+      new Address(address).toScVal(),
+      xdr.ScVal.scvBytes(bytes as any),
+    );
+
+    const tx = new TransactionBuilder(account, { fee: "100000", networkPassphrase: NETWORK_PASSPHRASE })
+      .addOperation(op)
+      .setTimeout(120)
+      .build();
+
+    const prepared = await server.prepareTransaction(tx);
+    const signResult = await signTransaction(prepared.toXDR(), { networkPassphrase: NETWORK_PASSPHRASE });
+    if (signResult.error) throw new Error(signResult.error as string);
+
+    const signedXdr = typeof signResult === "string"
+      ? signResult
+      : (signResult as any).signedTxXdr ?? (signResult as any).xdr;
+    if (!signedXdr) throw new Error("Could not retrieve signed XDR from Freighter.");
+
+    const signedTx = TransactionBuilder.fromXDR(signedXdr, NETWORK_PASSPHRASE);
+    const sent = await server.sendTransaction(signedTx);
+    if (sent.status === "ERROR") throw new Error("RPC rejected the transaction.");
+
+    return await pollTx(server, sent.hash);
+  };
+
+  // ── is_registered() — read-only check ────────────────────────────────────
+  const isRegistered = async (addr: string): Promise<boolean> => {
+    if (!StrKey.isValidEd25519PublicKey(addr)) return false;
+    try {
+      const retval = await simulate("is_registered", [new Address(addr).toScVal()]);
+      return retval ? (scValToNative(retval) as boolean) : false;
+    } catch {
+      return false;
+    }
+  };
+
+  // ── get_registration() — returns registration record if exists ────────────
+  const getRegistration = async (addr: string): Promise<RegistrationRecord | null> => {
+    if (!StrKey.isValidEd25519PublicKey(addr)) return null;
+    try {
+      const retval = await simulate("get_registration", [new Address(addr).toScVal()]);
+      if (!retval) return null;
+      const raw = scValToNative(retval);
+      if (!raw) return null;
+      return raw as RegistrationRecord;
+    } catch {
+      return null;
+    }
   };
 
   const vouchForStudent = async (studentAddress: string, nameHashHex: string, message: string) => {
@@ -183,6 +254,7 @@ export function KatibayProvider({ children }: { children: ReactNode }) {
   return (
     <KatibayContext.Provider value={{
       address, isConnecting, connect, disconnect,
+      registerIdentity, isRegistered, getRegistration,
       vouchForStudent, checkVerified, getIdentity, getAttestations,
     }}>
       {children}
