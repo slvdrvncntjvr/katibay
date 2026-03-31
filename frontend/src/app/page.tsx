@@ -90,7 +90,7 @@ function StatHighlight({ value, label, sub }: { value: string; label: string; su
 }
 
 export default function Home() {
-  const { address, connect, disconnect, isConnecting, vouchForStudent, checkVerified, getIdentity } = useKatibay();
+  const { address, connect, disconnect, isConnecting, vouchForStudent, checkVerified, getIdentity, isRegistered } = useKatibay();
   const appRef = useRef<HTMLElement>(null);
   const CONTRACT_ID = process.env.NEXT_PUBLIC_CONTRACT_ID ?? "";
 
@@ -103,6 +103,15 @@ export default function Home() {
   const [vRole, setVRole]         = useState("");
   const [vLoading, setVLoading]   = useState(false);
   const [vResult, setVResult]     = useState<{ text: string; ok: boolean } | null>(null);
+  const [isVoucherRegistered, setIsVoucherRegistered] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    if (address) {
+      isRegistered(address).then(setIsVoucherRegistered);
+    } else {
+      setIsVoucherRegistered(null);
+    }
+  }, [address, isRegistered]);
 
   // SHA-256 helper (in vouch form)
   const [helperOpen, setHelperOpen]   = useState(false);
@@ -123,7 +132,26 @@ export default function Home() {
   // ── Handlers ─────────────────────────────────────────────────────────────
   const handleVouch = async () => {
     if (!vRole) { toast.error("Please select your role first."); return; }
+    if (isVoucherRegistered === false) {
+      toast.error("You must register your identity before you can vouch.");
+      return;
+    }
+
     setVLoading(true); setVResult(null);
+
+    // Validate student is registered first
+    try {
+      const studentReg = await isRegistered(vStudent.trim());
+      if (!studentReg) {
+        toast.error("Student has not registered their identity yet.", { icon: "⚠️" });
+        setVResult({ text: "Error: The student must register their identity on-chain before receiving vouches.", ok: false });
+        setVLoading(false);
+        return;
+      }
+    } catch {
+      // Ignore format errors here, let the contract TX fail gracefully below
+    }
+
     const fullMessage = `[${vRole}] ${vMsg.trim()}`;
     const tid = toast.loading("Signing & broadcasting to Stellar…");
     try {
@@ -377,6 +405,16 @@ export default function Home() {
               </div>
               <hr className="divider" />
 
+              {address && isVoucherRegistered === false && (
+                <div className="result-box err" style={{ marginBottom: "1.25rem", textAlign: "left", fontSize: "0.9rem" }}>
+                  <strong>⚠️ Registration Required</strong><br/>
+                  You cannot submit vouches until you commit your own identity to the blockchain.<br/>
+                  <Link href="/register" style={{ textDecoration: "underline", fontWeight: 700, display: "inline-block", marginTop: "0.5rem" }}>
+                    → Go to Register Page
+                  </Link>
+                </div>
+              )}
+
               {/* Student address */}
               <div className="field">
                 <label className="field-label">Student&apos;s Stellar Address (G…)</label>
@@ -469,7 +507,7 @@ export default function Home() {
                 <button
                   className="btn btn-gold btn-full"
                   onClick={handleVouch}
-                  disabled={vLoading || !address || !vStudent || !vHash || !vRole || !vMsg.trim()}
+                  disabled={vLoading || !address || !vStudent || !vHash || !vRole || !vMsg.trim() || isVoucherRegistered === false}
                 >
                   {vLoading
                     ? <><Spinner /> Signing & Broadcasting…</>
