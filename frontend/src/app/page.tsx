@@ -3,7 +3,17 @@
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import toast from "react-hot-toast";
+import { motion } from "framer-motion";
 import { useKatibay, IdentityRecord } from "@/hooks/KatibayContext";
+
+const FADE_UP = {
+  hidden: { opacity: 0, y: 30 },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.8, ease: "easeOut" as const } }
+};
+const STAGGER = {
+  hidden: { opacity: 0 },
+  visible: { opacity: 1, transition: { staggerChildren: 0.12 } }
+};
 
 // ── SHA-256 via Web Crypto API ───────────────────────────────────────────────
 async function sha256hex(text: string): Promise<string> {
@@ -89,6 +99,40 @@ function StatHighlight({ value, label, sub }: { value: string; label: string; su
   );
 }
 
+function SorobanTerminal() {
+  const [lines, setLines] = useState<number>(0);
+  useEffect(() => {
+    const sequence = [800, 1600, 2400, 3200];
+    const timeouts = sequence.map((t, i) => setTimeout(() => setLines(i + 1), t));
+    return () => timeouts.forEach(clearTimeout);
+  }, []);
+
+  return (
+    <div className="terminal-container">
+      <div className="terminal-header">
+        <div className="mac-dot red"></div>
+        <div className="mac-dot yellow"></div>
+        <div className="mac-dot green"></div>
+        <span className="terminal-title">bash — soroban</span>
+      </div>
+      <div className="terminal-body">
+        <p className="cmd"><span>$</span> soroban contract invoke \</p>
+        <p className="cmd indent">--id CATFHPL7... \</p>
+        <p className="cmd indent">--source Maria --network testnet \</p>
+        <p className="cmd indent">-- func register --name_hash a8f5c...</p>
+        
+        {lines > 0 && <p className="success">✔ Transaction submitted: 0x9f8b7... (Ledger: 12519)</p>}
+        {lines > 1 && <p className="cmd" style={{ marginTop: 15 }}><span>$</span> soroban contract invoke \</p>}
+        {lines > 1 && <p className="cmd indent">--source Barangay_Captain --network testnet \</p>}
+        {lines > 2 && <p className="cmd indent">-- func vouch_for --student GB3X... --role "Captain"</p>}
+        
+        {lines > 3 && <p className="success">✔ Vouch recorded! Current vouches: 1 / 3</p>}
+        {lines > 3 && <p className="cmd" style={{ marginTop: 15 }}><span>$</span> <span className="cursor"></span></p>}
+      </div>
+    </div>
+  );
+}
+
 export default function Home() {
   const { address, connect, disconnect, isConnecting, vouchForStudent, checkVerified, getIdentity, isRegistered } = useKatibay();
   const appRef = useRef<HTMLElement>(null);
@@ -99,11 +143,27 @@ export default function Home() {
   // ── Vouch state ───────────────────────────────────────────────────────────
   const [vStudent, setVStudent]   = useState("");
   const [vHash, setVHash]         = useState("");
+  const [vRole, setVRole]         = useState(ROLES[0].value);
   const [vMsg, setVMsg]           = useState("");
-  const [vRole, setVRole]         = useState("");
   const [vLoading, setVLoading]   = useState(false);
   const [vResult, setVResult]     = useState<{ text: string; ok: boolean } | null>(null);
   const [isVoucherRegistered, setIsVoucherRegistered] = useState<boolean | null>(null);
+
+  // ── Localized Mouse Tracker for Glow Effects ──────────────────────────────
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      const cards = document.querySelectorAll('.feature-card, .app-card, .step-card, .vouch-panel, .lookup-panel');
+      cards.forEach((card) => {
+        const rect = card.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        (card as HTMLElement).style.setProperty('--mouse-x', `${x}px`);
+        (card as HTMLElement).style.setProperty('--mouse-y', `${y}px`);
+      });
+    };
+    window.addEventListener('mousemove', handleMouseMove);
+    return () => window.removeEventListener('mousemove', handleMouseMove);
+  }, []);
 
   useEffect(() => {
     if (address) {
@@ -233,44 +293,44 @@ export default function Home() {
       </nav>
 
       {/* ══ HERO ════════════════════════════════════════════════════════════ */}
-      <section className="hero-section">
+      <motion.section className="hero-section" initial="hidden" animate="visible" variants={STAGGER}>
         <div className="hero-orb hero-orb-1" />
         <div className="hero-orb hero-orb-2" />
-        <div className="hero-eyebrow">
+        <motion.div className="hero-eyebrow" variants={FADE_UP}>
           <span className="eyebrow-dot" />
           Stellar Soroban · Community Identity · Philippines
-        </div>
-        <h1 className="hero-h1">
+        </motion.div>
+        <motion.h1 className="hero-h1" variants={FADE_UP}>
           Your barangay vouches for you.<br />
           <span className="hero-highlight">The blockchain remembers.</span>
-        </h1>
-        <p className="hero-sub">
+        </motion.h1>
+        <motion.p className="hero-sub" variants={FADE_UP}>
           Katibay breaks the Philippine ID loop — where every document requires another
           document — by putting community trust on an immutable ledger that no politician
           can delete and no fire can burn.
-        </p>
-        <div className="hero-actions">
+        </motion.p>
+        <motion.div className="hero-actions" variants={FADE_UP}>
           <button className="btn btn-gold btn-lg" onClick={scrollToApp}>
             Launch App <Icon d={PATHS.arrow} size={16} />
           </button>
           <Link href="/register" className="btn btn-ghost btn-lg">
             <Icon d={PATHS.user} size={16} /> Register as Student
           </Link>
-        </div>
-        <div className="hero-contract">
+        </motion.div>
+        <motion.div className="hero-contract" variants={FADE_UP}>
           <span className="hero-contract-label">Live on Stellar Testnet</span>
           <span className="hero-contract-id">{CONTRACT_ID.slice(0, 16)}…{CONTRACT_ID.slice(-8)}</span>
           <button className="icon-btn" onClick={copyContract} title="Copy contract ID">
             <Icon d={PATHS.copy} size={14} />
           </button>
-        </div>
-      </section>
+        </motion.div>
+      </motion.section>
 
       {/* ══ STORY ═══════════════════════════════════════════════════════════ */}
-      <section id="why" className="section story-section">
-        <div className="section-label">The Problem</div>
+      <motion.section id="why" className="section story-section" initial="hidden" whileInView="visible" viewport={{ once: true, margin: "-100px" }} variants={STAGGER}>
+        <motion.div className="section-label" variants={FADE_UP}>The Problem</motion.div>
         <div className="story-grid">
-          <div className="story-text">
+          <motion.div className="story-text" variants={FADE_UP}>
             <h2 className="section-h2">
               Maria can&apos;t apply for a scholarship.<br />
               <span style={{ color: "var(--gold-light)" }}>She has no ID.</span>
@@ -293,8 +353,8 @@ export default function Home() {
                 something to gain.
               </p>
             </div>
-          </div>
-          <div className="story-stats">
+          </motion.div>
+          <motion.div className="story-stats" variants={FADE_UP}>
             <StatHighlight value="4.6M" label="Out-of-school youth in PH" sub="Philippine Statistics Authority, 2022" />
             <StatHighlight value="₱12K" label="Avg CHED scholarship / sem" sub="Withheld from unverified students" />
             <StatHighlight value="0" label="Documents Maria needs" sub="With Katibay's on-chain ID" />
@@ -306,63 +366,58 @@ export default function Home() {
                 does too.&rdquo;
               </blockquote>
             </div>
-          </div>
+          </motion.div>
         </div>
-      </section>
+      </motion.section>
 
       {/* ══ HOW IT WORKS ════════════════════════════════════════════════════ */}
-      <section id="how" className="section">
-        <div className="section-label">The Solution</div>
-        <h2 className="section-h2 center">How Katibay Works</h2>
-        <p className="section-sub center">
+      <motion.section id="how" className="section" initial="hidden" whileInView="visible" viewport={{ once: true, margin: "-100px" }} variants={STAGGER}>
+        <motion.div className="section-label" variants={FADE_UP}>The Solution</motion.div>
+        <motion.h2 className="section-h2 center" variants={FADE_UP}>How Katibay Works</motion.h2>
+        <motion.p className="section-sub center" variants={FADE_UP}>
           From community trust to scholarship access — on-chain, tamper-proof, no government ID required.
-        </p>
+        </motion.p>
         <div className="steps-grid">
-          <StepCard n={1} icon={PATHS.user}    delay="0.05s" title="Student Registers"    desc="Creates a Stellar wallet. Generates their name hash at /register — a SHA-256 fingerprint shared with their vouchers." />
-          <StepCard n={2} icon={PATHS.message} delay="0.1s"  title="Community Attests"   desc="Barangay captain, teacher, or neighbor submits a signed on-chain vouch with their role and written attestation — permanently stored." />
-          <StepCard n={3} icon={PATHS.award}   delay="0.15s" title="Credential Issued"   desc="After 3 attestations, the Soroban contract mints 1 KTBY credential token to the student's Stellar wallet. Composable with any dApp." />
-          <StepCard n={4} icon={PATHS.zap}     delay="0.2s"  title="Scholarship Unlocked" desc="apply_scholarship() records the student's school slot on-chain. Their KTBY token replaces a physical ID requirement." />
+          <motion.div variants={FADE_UP}><StepCard n={1} icon={PATHS.user}    delay="0s" title="Student Registers"    desc="Creates a Stellar wallet. Generates their name hash at /register — a SHA-256 fingerprint shared with their vouchers." /></motion.div>
+          <motion.div variants={FADE_UP}><StepCard n={2} icon={PATHS.message} delay="0s"  title="Community Attests"   desc="Barangay captain, teacher, or neighbor submits a signed on-chain vouch with their role and written attestation — permanently stored." /></motion.div>
+          <motion.div variants={FADE_UP}><StepCard n={3} icon={PATHS.award}   delay="0s" title="Credential Issued"   desc="After 3 attestations, the Soroban contract mints 1 KTBY credential token to the student's Stellar wallet. Composable with any dApp." /></motion.div>
+          <motion.div variants={FADE_UP}><StepCard n={4} icon={PATHS.zap}     delay="0s"  title="Scholarship Unlocked" desc="apply_scholarship() records the student's school slot on-chain. Their KTBY token replaces a physical ID requirement." /></motion.div>
         </div>
-        <div className="flow-bar">
-          <span className="flow-step">register()</span>
-          <Icon d={PATHS.arrow} size={14} />
-          <span className="flow-step">vouch_for(message)</span>
-          <Icon d={PATHS.arrow} size={14} />
-          <span className="flow-step">issue_credential()</span>
-          <Icon d={PATHS.arrow} size={14} />
-          <span className="flow-step flow-step-gold">apply_scholarship()</span>
-        </div>
-      </section>
+        <motion.div variants={FADE_UP}>
+          <SorobanTerminal />
+        </motion.div>
+
+      </motion.section>
 
       {/* ══ FEATURES ════════════════════════════════════════════════════════ */}
-      <section className="section features-section">
+      <motion.section className="section features-section" initial="hidden" whileInView="visible" viewport={{ once: true, margin: "-100px" }} variants={STAGGER}>
         <div className="features-grid">
-          <div className="feature-card">
+          <motion.div className="feature-card" variants={FADE_UP}>
             <div className="feature-icon"><Icon d={PATHS.key} size={20} /></div>
             <h4>Soroban Smart Contracts</h4>
             <p>Multi-sig vouching logic, threshold enforcement, double-vouch prevention, and scholarship slot matching — all in Rust, compiled to WASM.</p>
-          </div>
-          <div className="feature-card">
+          </motion.div>
+          <motion.div className="feature-card" variants={FADE_UP}>
             <div className="feature-icon" style={{ color: "var(--info)" }}><Icon d={PATHS.award} size={20} /></div>
             <h4>KTBY Credential Token</h4>
             <p>A Stellar asset token minted only after 3+ community attestations. Composable — any school or DAO can verify it on-chain.</p>
-          </div>
-          <div className="feature-card">
+          </motion.div>
+          <motion.div className="feature-card" variants={FADE_UP}>
             <div className="feature-icon" style={{ color: "var(--success)" }}><Icon d={PATHS.shield} size={20} /></div>
             <h4>On-Chain Attestation Messages</h4>
             <p>Every vouch stores the community member&apos;s role and written statement permanently on the Stellar ledger — readable by anyone, immutable forever.</p>
-          </div>
-          <div className="feature-card">
+          </motion.div>
+          <motion.div className="feature-card" variants={FADE_UP}>
             <div className="feature-icon" style={{ color: "var(--gold-light)" }}><Icon d={PATHS.zap} size={20} /></div>
             <h4>SHA-256 Privacy Hashing</h4>
             <p>Names are stored as SHA-256 hashes — privacy-preserving. The Register page generates your hash instantly in the browser, no terminal needed.</p>
-          </div>
+          </motion.div>
         </div>
-      </section>
+      </motion.section>
 
-      {/* ══ APP SECTION ════════════════════════════════════════════════════ */}
-      <section id="app" ref={appRef} className="section app-section">
-        <div className="section-label">Live Contract</div>
+      {/* ══ APP COMPONENT ═══════════════════════════════════════════════════ */}
+      <motion.section id="app" ref={appRef} className="section app-section" initial="hidden" whileInView="visible" viewport={{ once: true, margin: "-100px" }} variants={FADE_UP}>
+        <div className="section-label center">The Network</div>
         <h2 className="section-h2 center">Interact With Katibay</h2>
         <p className="section-sub center">
           Connect Freighter (Testnet mode) to submit vouches, or look up any student
@@ -595,7 +650,7 @@ export default function Home() {
             </>
           )}
         </div>
-      </section>
+      </motion.section>
 
       {/* ══ FOOTER ══════════════════════════════════════════════════════════ */}
       <footer className="footer">

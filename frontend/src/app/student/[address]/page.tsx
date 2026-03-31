@@ -43,6 +43,20 @@ function parseAttestation(message: string) {
   return { role: null, text: message, emoji: "💬", cls: "role-badge-grey" };
 }
 
+// ── SHA-256 via Web Crypto API ───────────────────────────────────────────────
+async function sha256hex(text: string): Promise<string> {
+  if (!text.trim()) return "";
+  try {
+    const encoded = new TextEncoder().encode(text);
+    const buf = await crypto.subtle.digest("SHA-256", encoded);
+    return Array.from(new Uint8Array(buf))
+      .map((b) => b.toString(16).padStart(2, "0"))
+      .join("");
+  } catch {
+    return "";
+  }
+}
+
 const Spinner = () => (
   <div style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: "3rem" }}>
     <span className="spinner spinner-lg" />
@@ -111,6 +125,19 @@ export default function StudentProfilePage() {
   const [registered, setRegistered] = useState<boolean>(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+
+  const [verifyName, setVerifyName] = useState("");
+  const [verifyStatus, setVerifyStatus] = useState<"idle" | "match" | "mismatch">("idle");
+
+  const handleVerifyName = async () => {
+    if (!verifyName.trim() || !identity) return;
+    const h = await sha256hex(verifyName.trim());
+    if (h === identity.name_hash) {
+      setVerifyStatus("match");
+    } else {
+      setVerifyStatus("mismatch");
+    }
+  };
 
   useEffect(() => {
     if (!address) return;
@@ -262,6 +289,43 @@ export default function StudentProfilePage() {
                   View Contract <Icon d={PATHS.external} size={13} />
                 </a>
               </div>
+            </div>
+
+            {/* Verify Name Matcher */}
+            <div className="profile-card" style={{ marginTop: "1.5rem", background: "rgba(255,255,255,0.02)", border: "1px dashed rgba(255,255,255,0.15)" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.75rem" }}>
+                <Icon d={PATHS.check} size={18} style={{ color: "var(--gold)" }} />
+                <h3 style={{ fontSize: "1.05rem", fontWeight: 700, margin: 0 }}>Verify Legal Name</h3>
+              </div>
+              <p style={{ fontSize: "0.85rem", color: "var(--text-3)", marginBottom: "1rem" }}>
+                Because student identity is maintained via a SHA-256 hash, you cannot read their name directly from the blockchain. However, you can verify if a scholarship application matches their on-chain hash here:
+              </p>
+              <div style={{ display: "flex", gap: "0.5rem" }}>
+                <input
+                  className="field-input"
+                  placeholder="e.g. Maria Santos"
+                  value={verifyName}
+                  onChange={(e) => {
+                    setVerifyName(e.target.value);
+                    setVerifyStatus("idle");
+                  }}
+                  onKeyDown={(e) => e.key === "Enter" && handleVerifyName()}
+                  style={{ flex: 1 }}
+                />
+                <button className="btn btn-gold" onClick={handleVerifyName} disabled={!verifyName.trim()}>
+                  Verify Name Match
+                </button>
+              </div>
+              {verifyStatus === "match" && (
+                <div className="result-box ok" style={{ marginTop: "1rem" }}>
+                  <strong>✅ Perfect Match!</strong><br />This name produces the exact SHA-256 hash recorded on the Stellar ledger for this wallet.
+                </div>
+              )}
+              {verifyStatus === "mismatch" && (
+                <div className="result-box err" style={{ marginTop: "1rem" }}>
+                  <strong>❌ Mismatch</strong><br />This name mathematically hashes to a different value and does not match the on-chain record. Note that hashing is perfectly case and space sensitive.
+                </div>
+              )}
             </div>
 
             {/* Attestations */}
