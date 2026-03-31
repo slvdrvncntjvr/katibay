@@ -551,7 +551,7 @@ export default function Home() {
                 <p style={{ fontSize: "0.82rem", color: "var(--text-3)", lineHeight: 1.65 }}>
                   👀 <strong style={{ color: "var(--text-2)" }}>Try it now:</strong> Look up our verified test student —
                   <br />
-                  <code style={{ fontSize: "0.78rem" }}>GBWDC266PYWCVDCRJXLKEEUTBHFLSPSH7FYIPVRWCSVSIZRBGOAKJ6T4</code>
+                  <code style={{ fontSize: "0.78rem" }}>GA7SB3REG3SNRMLHFJNZ5M3W33VOSUBZUYL6URGADAPILTJYPVWJIHPT</code>
                 </p>
               </div>
             </>
